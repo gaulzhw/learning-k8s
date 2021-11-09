@@ -34,3 +34,9 @@ curl -L https://git.io/getLatestIstio | ISTIO_VERSION=1.11.4 sh -
 ```
 
 调整部署的yaml文件 istio-1.11.4-default.yaml，发布到集群
+
+
+
+## 参考文档
+
+- https://blog.51cto.com/u_14625168/2474277
