@@ -1,3 +1,10 @@
+# istio
+
+
+
+## k8s cluster
+
+```shell
 kind create cluster --config=-<<EOF
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
@@ -11,4 +18,19 @@ nodes:
   - containerPort: 443
     hostPort: 443
     protocol: TCP
-EOF
+    EOF
+```
+
+
+
+## install istio in k8s
+
+```shell
+# download istio
+curl -L https://git.io/getLatestIstio | ISTIO_VERSION=1.11.4 sh -
+
+# generate yaml
+./bin/istioctl manifest generate --set profile=default
+```
+
+调整部署的yaml文件 istio-1.11.4-default.yaml，发布到集群
