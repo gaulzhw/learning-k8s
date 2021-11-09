@@ -30,7 +30,7 @@ spec:
         prefix: /test
     route:
     - destination:
-        host: nginx-svc.default.svc.cluster.local
+        host: web-svc.default.svc.cluster.local
         subset: default
         port:
           number: 80
@@ -38,10 +38,10 @@ spec:
 apiVersion: networking.istio.io/v1alpha3
 kind: DestinationRule
 metadata:
-  name: nginx-svc
+  name: web-svc
   namespace: default
 spec:
-  host: nginx-svc
+  host: web-svc
   subsets:
   - name: default
   trafficPolicy:
@@ -51,37 +51,37 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: nginx-svc
+  name: web-svc
   namespace: default
 spec:
   ports:
   - name: http
     port: 80
     protocol: TCP
-    targetPort: 80
+    targetPort: 8080
   selector:
-    app: nginx-pod
+    app: echoserver
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-deploy
+  name: echoserver
   namespace: default
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: nginx-pod 
+      app: echoserver
   template:
     metadata:
       labels:
-        app: nginx-pod 
+        app: echoserver
     spec:
       containers:
-      -  image: nginx:1.14-alpine
-         name: nginx
+      -  image: k8s.gcr.io/echoserver:1.10
+         name: echoserver
          ports:
-         - containerPort: 80
+         - containerPort: 8080
            name: port
            protocol: TCP
 
