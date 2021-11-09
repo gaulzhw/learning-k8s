@@ -8756,11 +8756,11 @@ spec:
             timeoutSeconds: 1
           resources:
             limits:
-              cpu: 2000m
+              cpu: 1000m
               memory: 1024Mi
             requests:
-              cpu: 100m
-              memory: 128Mi
+              cpu: 1000m
+              memory: 1024Mi
           env:
           - name: JWT_POLICY
             value: third-party-jwt
@@ -8966,7 +8966,10 @@ spec:
           resources:
             requests:
               cpu: 500m
-              memory: 2048Mi
+              memory: 1024Mi
+            limits:
+              cpu: 500m
+              memory: 1024Mi
           volumeMounts:
           - name: istio-token
             mountPath: /var/run/secrets/tokens

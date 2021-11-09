@@ -18,12 +18,18 @@ nodes:
   - containerPort: 443
     hostPort: 443
     protocol: TCP
-    EOF
+EOF
 ```
 
 
 
 ## install istio in k8s
+
+创建istio-system namespace
+
+调整部署的yaml文件 istio-1.11.4-default.yaml，发布到集群
+
+如果没有部署文件，可以通过istioctl获取后生成
 
 ```shell
 # download istio
@@ -33,46 +39,15 @@ curl -L https://git.io/getLatestIstio | ISTIO_VERSION=1.11.4 sh -
 ./bin/istioctl manifest generate --set profile=default
 ```
 
-调整部署的yaml文件 istio-1.11.4-default.yaml，发布到集群
+
+
+istio默认开启了privileged特性，禁止小于1024的端口，如果需要暴露80、443，需要调整删除env: ISTIO_META_UNPRIVILEGED_POD
 
 
 
 ## test
 
-```yaml
-# Gateway
-apiVersion: networking.istio.io/v1alpha3
-kind: Gateway
-metadata:
-  name: test-gateway
-spec:
-  selector:
-    istio: ingressgateway
-  servers:
-  - hosts:
-    - test.com
-    port:
-      number: 80
-      name: http
-      protocol: HTTP
----
-# VirtualService
-apiVersion: networking.istio.io/v1alpha3
-kind: VirtualService
-metadata:
-  name: test-vs
-spec:
-  gateways:
-  - test-gateway
-  hosts:
-  - test.com
-  http:
-  - route:
-    - destination:
-        host: nginx-svc
-        port:
-          number: 80
-```
+部署 istio-test.yaml
 
 
 
