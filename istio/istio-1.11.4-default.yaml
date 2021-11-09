@@ -8722,11 +8722,6 @@ spec:
         prometheus.io/path: "/stats/prometheus"
         sidecar.istio.io/inject: "false"
     spec:
-      securityContext:
-        runAsUser: 1337
-        runAsGroup: 1337
-        runAsNonRoot: true
-        fsGroup: 1337
       serviceAccountName: istio-ingressgateway-service-account
       containers:
         - name: istio-proxy
@@ -8749,13 +8744,6 @@ spec:
           - --proxyLogLevel=warning
           - --proxyComponentLogLevel=misc:error
           - --log_output_level=default:info
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            privileged: false
-            readOnlyRootFilesystem: true
           readinessProbe:
             failureThreshold: 30
             httpGet:
@@ -8817,8 +8805,6 @@ spec:
             value: "cluster.local"
           - name: TRUST_DOMAIN
             value: "cluster.local"
-          - name: ISTIO_META_UNPRIVILEGED_POD
-            value: "true"
           - name: ISTIO_META_ROUTER_MODE
             value: "standard"
           - name: ISTIO_META_CLUSTER_ID
@@ -8916,8 +8902,6 @@ spec:
         sidecar.istio.io/inject: "false"
     spec:
       serviceAccountName: istiod
-      securityContext:
-        fsGroup: 1337
       containers:
         - name: discovery
           image: "docker.io/istio/pilot:1.11.4"
@@ -8983,13 +8967,6 @@ spec:
             requests:
               cpu: 500m
               memory: 2048Mi
-          securityContext:
-            runAsUser: 1337
-            runAsGroup: 1337
-            runAsNonRoot: true
-            capabilities:
-              drop:
-              - ALL
           volumeMounts:
           - name: istio-token
             mountPath: /var/run/secrets/tokens
@@ -9024,44 +9001,6 @@ spec:
         secret:
           secretName: istio-kubeconfig
           optional: true
----
-apiVersion: policy/v1beta1
-kind: PodDisruptionBudget
-metadata:
-  name: istio-ingressgateway
-  namespace: istio-system
-  labels:
-    app: istio-ingressgateway
-    istio: ingressgateway
-    release: istio
-    istio.io/rev: default
-    install.operator.istio.io/owning-resource: unknown
-    operator.istio.io/component: "IngressGateways"
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app: istio-ingressgateway
-      istio: ingressgateway
----
-apiVersion: policy/v1beta1
-kind: PodDisruptionBudget
-metadata:
-  name: istiod
-  namespace: istio-system
-  labels:
-    app: istiod
-    istio.io/rev: default
-    install.operator.istio.io/owning-resource: unknown
-    operator.istio.io/component: "Pilot"
-    release: istio
-    istio: pilot
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app: istiod
-      istio: pilot
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -9195,7 +9134,7 @@ spec:
     - name: https
       port: 443
       protocol: TCP
-      targetPort: 8443
+      targetPort: 443
 ---
 apiVersion: v1
 kind: Service

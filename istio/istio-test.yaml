@@ -1,0 +1,87 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: demo-gateway
+  namespace: default
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - demo.com
+    port:
+      number: 80
+      name: http
+      protocol: HTTP
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: demo.com
+  namespace: default
+spec:
+  gateways:
+  - demo-gateway
+  hosts:
+  - demo.com
+  http:
+  - match:
+    - uri:
+        prefix: /test
+    route:
+    - destination:
+        host: nginx-svc.default.svc.cluster.local
+        subset: default
+        port:
+          number: 80
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: nginx-svc
+  namespace: default
+spec:
+  host: nginx-svc
+  subsets:
+  - name: default
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-svc
+  namespace: default
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: nginx-pod
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deploy
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-pod 
+  template:
+    metadata:
+      labels:
+        app: nginx-pod 
+    spec:
+      containers:
+      -  image: nginx:1.14-alpine
+         name: nginx
+         ports:
+         - containerPort: 80
+           name: port
+           protocol: TCP
+

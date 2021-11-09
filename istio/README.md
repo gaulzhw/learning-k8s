@@ -37,6 +37,45 @@ curl -L https://git.io/getLatestIstio | ISTIO_VERSION=1.11.4 sh -
 
 
 
+## test
+
+```yaml
+# Gateway
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: test-gateway
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - test.com
+    port:
+      number: 80
+      name: http
+      protocol: HTTP
+---
+# VirtualService
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: test-vs
+spec:
+  gateways:
+  - test-gateway
+  hosts:
+  - test.com
+  http:
+  - route:
+    - destination:
+        host: nginx-svc
+        port:
+          number: 80
+```
+
+
+
 ## 参考文档
 
 - https://blog.51cto.com/u_14625168/2474277
