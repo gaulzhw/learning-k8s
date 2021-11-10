@@ -15,9 +15,6 @@ nodes:
   - containerPort: 80
     hostPort: 80
     protocol: TCP
-  - containerPort: 443
-    hostPort: 443
-    protocol: TCP
 EOF
 ```
 
@@ -48,6 +45,8 @@ istio默认开启了privileged特性，禁止小于1024的端口，如果需要�
 ## test
 
 部署 istio-test.yaml
+
+VirtualService、DestinationRule需要和对应的service在同一namespace下
 
 
 

@@ -8,7 +8,7 @@ spec:
     istio: ingressgateway
   servers:
   - hosts:
-    - demo.com
+    - "demo.com"
     port:
       number: 80
       name: http
@@ -17,71 +17,30 @@ spec:
 apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
-  name: demo.com
+  name: web-vs
   namespace: default
 spec:
   gateways:
   - demo-gateway
   hosts:
-  - demo.com
+  - "demo.com"
   http:
   - match:
     - uri:
-        prefix: /test
+        prefix: /
     route:
     - destination:
-        host: web-svc.default.svc.cluster.local
-        subset: default
+        host: web
         port:
           number: 80
 ---
 apiVersion: networking.istio.io/v1alpha3
 kind: DestinationRule
 metadata:
-  name: web-svc
+  name: web-dr
   namespace: default
 spec:
-  host: web-svc
-  subsets:
-  - name: default
+  host: web
   trafficPolicy:
     loadBalancer:
       simple: ROUND_ROBIN
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: web-svc
-  namespace: default
-spec:
-  ports:
-  - name: http
-    port: 80
-    protocol: TCP
-    targetPort: 8080
-  selector:
-    app: echoserver
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: echoserver
-  namespace: default
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: echoserver
-  template:
-    metadata:
-      labels:
-        app: echoserver
-    spec:
-      containers:
-      -  image: k8s.gcr.io/echoserver:1.10
-         name: echoserver
-         ports:
-         - containerPort: 8080
-           name: port
-           protocol: TCP
-
