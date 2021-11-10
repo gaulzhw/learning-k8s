@@ -18,10 +18,10 @@ apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   name: web-vs
-  namespace: default
+  namespace: test
 spec:
   gateways:
-  - demo-gateway
+  - default/demo-gateway
   hosts:
   - "demo.com"
   http:
@@ -30,7 +30,7 @@ spec:
         prefix: /
     route:
     - destination:
-        host: web
+        host: web.default.svc.cluster.local
         port:
           number: 80
 ---
@@ -40,7 +40,7 @@ metadata:
   name: web-dr
   namespace: default
 spec:
-  host: web
+  host: web.default.svc.cluster.local
   trafficPolicy:
     loadBalancer:
       simple: ROUND_ROBIN

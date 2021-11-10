@@ -46,7 +46,7 @@ istio默认开启了privileged特性，禁止小于1024的端口，如果需要�
 
 部署 istio-test.yaml
 
-VirtualService、DestinationRule需要和对应的service在同一namespace下
+VirtualService与Gateway不在同一个namespace下的情况下，需要在VirtualService的gateways中配置"<namespace>/<gateway>"
 
 
 
