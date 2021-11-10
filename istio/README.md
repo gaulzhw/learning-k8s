@@ -50,6 +50,79 @@ VirtualService与Gateway不在同一个namespace下的情况下，需要在Virtu
 
 
 
+## 灰度流量模型
+
+- vs
+
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: web-vs
+  namespace: default
+spec:
+  gateways:
+  - default/demo-gateway
+  hosts:
+  - "demo.com"
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: nginx-svc
+        port:
+          number: 80
+        weight: 80
+    - destination:
+        host: tomcat-svc
+        port:
+          number: 80
+        weight: 20
+```
+
+![vs](img/vs.png)
+
+- vs+dr
+
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: web-vs
+  namespace: default
+spec:
+  gateways:
+  - default/demo-gateway
+  hosts:
+  - "demo.com"
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: web
+        port:
+          number: 80
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: web-dr
+  namespace: default
+spec:
+  host: web
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+```
+
+![vs+dr](img/vs+dr.png)
+
+
+
 ## 参考文档
 
 - https://blog.51cto.com/u_14625168/2474277
