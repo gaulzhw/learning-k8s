@@ -7410,11 +7410,11 @@ spec:
           args:
           - proxy
           - router
-          - --domain
-          - $(POD_NAMESPACE).svc.cluster.local
+          - --domain=$(POD_NAMESPACE).svc.cluster.local
           - --proxyLogLevel=warning
           - --proxyComponentLogLevel=misc:error
           - --log_output_level=default:info
+          - --concurrency=1
           readinessProbe:
             failureThreshold: 30
             httpGet:
@@ -7433,6 +7433,8 @@ spec:
               cpu: 1000m
               memory: 1024Mi
           env:
+          - name: GOMAXPROCS
+            value: "1"
           - name: JWT_POLICY
             value: third-party-jwt
           - name: PILOT_CERT_PROVIDER
