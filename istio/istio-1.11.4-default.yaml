@@ -7581,13 +7581,11 @@ spec:
         - name: discovery
           image: "docker.io/istio/pilot:1.11.4"
           args:
-          - "discovery"
+          - discovery
           - --monitoringAddr=:15014
           - --log_output_level=default:info
-          - --domain
-          - cluster.local
-          - --keepaliveMaxServerConnectionAge
-          - "30m"
+          - --domain=cluster.local
+          - --keepaliveMaxServerConnectionAge=30m
           ports:
           - containerPort: 8080
             protocol: TCP

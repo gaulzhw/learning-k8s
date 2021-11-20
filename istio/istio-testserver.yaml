@@ -1,0 +1,92 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: http-gateway
+  namespace: default
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - "stress-test.sg"
+    port:
+      number: 80
+      name: http
+      protocol: HTTP
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: http-vs
+  namespace: default
+spec:
+  gateways:
+  - default/http-gateway
+  hosts:
+  - "stress-test.sg"
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: stress-module-test-sg.stress-sg.svc.cluster.local
+        port:
+          number: 8080
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: http-dr
+  namespace: default
+spec:
+  host: stress-module-test-sg.stress-sg.svc.cluster.local
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+
+---
+
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: grpc-gateway
+  namespace: default
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - "stress-test.sg"
+    port:
+      number: 81
+      name: grpc
+      protocol: GRPC
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: grpc-vs
+  namespace: default
+spec:
+  gateways:
+  - default/grpc-gateway
+  hosts:
+  - "stress-test.sg"
+  http:
+  - route:
+    - destination:
+        host: stress-module-test-sg.stress-sg.svc.cluster.local
+        port:
+          number: 8181
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: grpc-dr
+  namespace: default
+spec:
+  host: stress-module-test-sg.stress-sg.svc.cluster.local
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
