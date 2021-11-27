@@ -1,7 +1,5 @@
 # CGroup
 
-http://linux.laoqinren.net/categories/cgroup/
-
 
 
 ## linux下的cgroups数据结构
@@ -61,3 +59,9 @@ struct cgroup {
     spinlock_t event_list_lock; 
 };
 ```
+
+
+
+## References
+
+http://linux.laoqinren.net/categories/cgroup/
