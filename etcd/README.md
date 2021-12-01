@@ -1,5 +1,9 @@
 # ETCD
 
+注：不特别强调，都是使用ETCDCTL_API=3
+
+etcd 3.4+默认使用API=3
+
 
 
 ## 操作容器的etcd
@@ -16,3 +20,22 @@ kubectl exec -it <etcd-pod> -n kube-system -- etcdctl \
 
 
 ## 常见运维场景、操作
+
+- 数据备份、同步
+
+```shell
+etcdctl snapshot save BackupFile.db
+etcdctl snapshot restore BackupFile.db -data-dir ETCDDir
+```
+
+- 碎片整理
+- 存储扩容
+- 节点变更
+  - 节点迁移、替换
+  - 节点增加
+  - 节点移除
+  - 强制性重启集群
+
+
+
+## 优化方案
