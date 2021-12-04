@@ -31,6 +31,8 @@ https://github.com/moby/moby/blob/master/cmd/dockerd/config_common_unix.go
 
 ## 日志
 
+![log-engine](img/log-engine.png)
+
 https://sematext.com/guides/docker-logs/
 
 docker默认采用的是json-file的日志引擎，标准输出在/var/lib/docker/containers/[container-id]/[container-id]-json.log
@@ -43,7 +45,7 @@ docker默认采用的是json-file的日志引擎，标准输出在/var/lib/docke
 {
   "log-driver": "json-file",
   "log-opts": {
-    "mode": "non-blocking",
+#    "mode": "non-blocking",
     "max-size": "100m",
     "max-file": "3"
   }
