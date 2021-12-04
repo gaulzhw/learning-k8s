@@ -10,7 +10,7 @@ etcd 3.4+默认使用API=3
 
 ```shell
 kubectl exec -it <etcd-pod> -n kube-system -- \
-	etcdctl \
+  etcdctl \
   --cacert=/etc/kubernetes/pki/etcd/ca.crt \
   --cert=/etc/kubernetes/pki/etcd/server.crt \
   --key=/etc/kubernetes/pki/etcd/server.key \
@@ -25,16 +25,16 @@ kubectl exec -it <etcd-pod> -n kube-system -- \
 创建非安全集群，便于调试
 
 ```shell
-docker run -d -p 2379:2379 -p 2380:2380 --name=etcd k8s.gcr.io/etcd:3.5.0-0 -- \
-	etcd \
-	--name infra0 \
-	--initial-advertise-peer-urls http://0.0.0.0:2380 \
-	--listen-peer-urls http://0.0.0.0:2380 \
-	--listen-client-urls http://0.0.0.0:2379 \
-	--advertise-client-urls http://0.0.0.0:2379 \
-	--initial-cluster-token etcd-cluster-1 \
-	--initial-cluster infra0=http://0.0.0.0:2380 \
-	--initial-cluster-state new
+docker run -d -p 2379:2379 -p 2380:2380 --name=etcd k8s.gcr.io/etcd:3.5.0-0 \
+  etcd \
+  --name infra0 \
+  --initial-advertise-peer-urls http://0.0.0.0:2380 \
+  --listen-peer-urls http://0.0.0.0:2380 \
+  --listen-client-urls http://0.0.0.0:2379 \
+  --advertise-client-urls http://0.0.0.0:2379 \
+  --initial-cluster-token etcd-cluster-1 \
+  --initial-cluster infra0=http://0.0.0.0:2380 \
+  --initial-cluster-state new
 ```
 
 
