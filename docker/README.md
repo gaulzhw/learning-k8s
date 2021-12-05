@@ -1,5 +1,7 @@
 # docker
 
+![docker_containerd_runc](img/docker_containerd_runc.png)
+
 
 
 ## 配置路径
