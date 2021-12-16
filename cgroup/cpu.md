@@ -2,7 +2,15 @@
 
 
 
-CPU使用情况
+## CPU 消耗分类
+
+top命令显示CPU消耗会分配在 us、sy、ni、id、wa、hi、si、s t
+
+![cpu-usage-pic](img/linux-top.png)
+
+
+
+各阶段使用情况
 
 ![cpu-usage-pic](img/cpu-usage-pic.png)
 
