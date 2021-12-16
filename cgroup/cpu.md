@@ -2,7 +2,26 @@
 
 
 
+CPU使用情况
+
+![cpu-usage-pic](img/cpu-usage-pic.png)
+
+![cpu-usage-table](img/cpu-usage-table.png)
+
+
+
 ## cgroup与CFS相关的三个参数
+
+cgroups是对指定进程做计算机资源限制，CPU Cgroup是Cgroups其中的一个Cgroups子系统，它是用来限制进程的CPU使用。
+
+对于进程的CPU使用，只包括两部分：
+
+- 用户态，us、ni
+- 内核态，sy
+
+wa、hi、si，这些IO或者中断相关的CPU使用，CPU Cgroup不会去做限制
+
+
 
 - cpu.cfs_quota_us：调度周期，一般值是100000，以microseconds为单位，也就是100ms
 - cpu.cfs_period_us：在一个调度周期里呗允许的运行时间，单位同上
