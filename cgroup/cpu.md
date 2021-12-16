@@ -2,7 +2,7 @@
 
 
 
-## CPU 消耗分类
+## CPU 使用分类
 
 top命令显示CPU消耗会分配在 us、sy、ni、id、wa、hi、si、s t
 
@@ -39,7 +39,15 @@ wa、hi、si，这些IO或者中断相关的CPU使用，CPU Cgroup不会去做�
 
 cpu.cfs_quota_us 和 cpu.cfs_period_us 这两个值决定了每个控制组中所有进程的可使用 CPU 资源的最大值
 
-cpu.shares 这个值决定了 CPU Cgroup 子系统下控制组可用 CPU 的相对比例，不过只有当系统上 CPU 完全被占满的时候，这个比例才会在各个控制组间起作用
+cpu.shares 这个值决定了 CPU Cgroup 子系统下控制组可用 CPU 的相对比例，只有当系统上 CPU 完全被占满的时候，这个比例才会在各个控制组间起作用
+
+
+
+## k8s 对CPU Cgroup配置
+
+request 配置 cpu.shares，无论其他容器申请多少CPU资源，即使运行时整个节点的CPU都被占满的情况下，容器还是可以保证获得需要的CPU数目，cpu.shared==1024表示1个CPU的比例，request CPU的值是n就是给cpu.shares赋值为n*1024
+
+limit 配置 cpu.cfs_quota_us，为容器设置可用CPU的上限
 
 
 
