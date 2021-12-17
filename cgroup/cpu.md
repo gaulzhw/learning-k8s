@@ -63,6 +63,8 @@ limit 配置 cpu.cfs_quota_us，为容器设置可用CPU的上限
 
 ## load average
 
+**Load Average = 可运行队列进程平均数 + 休眠队列中不可打断的进程平均数**
+
 load average不仅仅计算了CPU Usage的部分，还计算了系统中TASK_UNINTERRUPTIBLE状态的进程数目，这些状态的进程是D状态，主要集中在disk IO、信号量、锁的访问上，这些是对linux系统资源的竞争
 
 CPU cgroup可以限制进程的CPU资源使用，但是CPU cgroup无法限制linux系统资源的使用
