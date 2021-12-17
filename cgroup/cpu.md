@@ -51,6 +51,16 @@ limit 配置 cpu.cfs_quota_us，为容器设置可用CPU的上限
 
 
 
+## 容器内CPU统计
+
+/proc/stat是整个节点全局的状态文件，不属于任何一个namespace，无法在容器中通过读取/proc/stat文件来获取单个容器的CPU使用率
+
+要得到单个容器的CPU使用率，可以从CPU cgroup每个控制组里的统计文件cpuacct.stat中获取
+
+或者通过lxcfs，为每个容器虚拟/proc下的文件，比如/proc/stat
+
+
+
 ## load average
 
 load average不仅仅计算了CPU Usage的部分，还计算了系统中TASK_UNINTERRUPTIBLE状态的进程数目，这些状态的进程是D状态，主要集中在disk IO、信号量、锁的访问上，这些是对linux系统资源的竞争
