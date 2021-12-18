@@ -2,6 +2,14 @@
 
 
 
+以overlay分析docker的文件形式，参考文档有点旧，会有一些偏差
+
+主要分为三层：镜像层 lowerdir、容器层 upperdir、挂载层 merged
+
+![cgroup](img/overlay.png)
+
+
+
 ## image
 
 <img src="img/docker-image.png" alt="docker-image" style="zoom: 67%;" />
@@ -219,9 +227,209 @@ dockerd在收到客户端的创建容器请求后，做了两件事情
 
 二是检查客户端传过来的参数，并和image配置文件中的参数进行合并，然后存储成容器的配置文件
 
+- 容器的元数据
+
+创建容器时，docker会为每个容器创建两个新的layer
+
+一个是只读的init layer，里面包含docker为容器准备的一些文件
+
+另一个是容器的可写mount layer，以后在容器里面对rootfs的所有增删改操作的结果都会存在这个layer中
+
+```shell
+# layer的元数据存储在layerdb/mounts目录下，目录名称就是容器的ID
+root@CHNDSI-VS-208:~# docker ps
+CONTAINER ID   IMAGE                     COMMAND                  CREATED         STATUS        PORTS     NAMES
+92e2b2e3b842   k8s.gcr.io/etcd:3.5.0-0   "etcd --name infra1 …"   3 seconds ago   Up 1 second             etcd1
+root@CHNDSI-VS-208:/var/lib/docker/image/overlay2/layerdb/mounts/92e2b2e3b8424efee1050e6ddad09e968b28b9c5c7c0618c28ad379918d8b4ea# ls
+init-id  mount-id  parent
+
+# mount-id文件包含了mount layer的cacheid
+root@CHNDSI-VS-208:/var/lib/docker/image/overlay2/layerdb/mounts/92e2b2e3b8424efee1050e6ddad09e968b28b9c5c7c0618c28ad379918d8b4ea# cat mount-id
+90a2826bcfd624be7e15703373afe01019b45453c815fea43908299d9db9b90c
+
+# init-id文件包含了init layer的cacheid
+# init layer的cacheid就是在mount layer的cacheid后面加上了一个“-init”
+root@CHNDSI-VS-208:/var/lib/docker/image/overlay2/layerdb/mounts/92e2b2e3b8424efee1050e6ddad09e968b28b9c5c7c0618c28ad379918d8b4ea# cat init-id
+90a2826bcfd624be7e15703373afe01019b45453c815fea43908299d9db9b90c-init
+
+# parent里面包含的是image的最上一层layer的chainid
+# 表示这个容器的init layer的父layer是image的最顶层layer
+root@CHNDSI-VS-208:/var/lib/docker/image/overlay2/layerdb/mounts/92e2b2e3b8424efee1050e6ddad09e968b28b9c5c7c0618c28ad379918d8b4ea# cat parent
+sha256:fc88dca1b575dd53f3b62a2b9f47c6ee915a46069bb49762868b68503a58e7c2
+```
+
+新加的这两层layer比较特殊，只保存在layerdb/mounts下面，在layerdb/sha256目录下没有相关信息
+
+说明docker将container的layer和image的layer的元数据放在了不同的两个目录中
+
+- layer的数据
+
+container layer的数据和image layer的数据的管理方式是一样的，都存在/var/lib/docker/[storage-driver]目录下面
+
+```shell
+root@CHNDSI-VS-208:/var/lib/docker/overlay2# tree 90a2826bcfd624be7e15703373afe01019b45453c815fea43908299d9db9b90c-init/
+90a2826bcfd624be7e15703373afe01019b45453c815fea43908299d9db9b90c-init/
+├── committed
+├── diff # init layer包含了docker为每个容器所预先准备的文件
+│   ├── dev
+│   │   ├── console
+│   │   ├── pts
+│   │   └── shm
+│   └── etc
+│       ├── hostname
+│       ├── hosts
+│       ├── mtab -> /proc/mounts
+│       └── resolv.conf
+├── link # link是本层在l目录下的文件名称
+├── lower # lower表示该层依赖的所有底层，用l中的文件描述
+└── work
+    └── work
+```
+
+init层中的diff，除了mtab文件是指向/proc/mounts的软连接之外，其他的都是空的普通文件
+
+这几个文件都是Linux运行时必须的文件，如果缺少的话会导致某些程序或者库出现异常，所以docker需要为容器准备好这些文件：
+
+​	/dev/console: 在Linux主机上，该文件一般指向主机的当前控制台，有些程序会依赖该文件。在容器启动的时候，docker会为容器创建一个pts，然后通过bind mount的方式将pts绑定到容器里面的/dev/console上，这样在容器里面往这个文件里面写东西就相当于往容器的控制台上打印数据。这里创建一个空文件相当于占个坑，作为后续bind mount的目的路径。
+
+​	hostname，hosts，resolv.conf：对于每个容器来说，容器内的这几个文件内容都有可能不一样，这里也只是占个坑，等着docker在外面生成这几个文件，然后通过bind mount的方式将这些文件绑定到容器中的这些位置，即这些文件都会被宿主机中的文件覆盖掉。
+
+​	/etc/mtab：这个文件在新的Linux发行版中都指向/proc/mounts，里面包含了当前mount namespace中的所有挂载信息，很多程序和库会依赖这个文件。
+
+- 配置文件
+
+/var/lib/docker/container/[container-id]
+
+```shell
+root@CHNDSI-VS-208:/var/lib/docker/containers# tree 92e2b2e3b8424efee1050e6ddad09e968b28b9c5c7c0618c28ad379918d8b4ea/
+92e2b2e3b8424efee1050e6ddad09e968b28b9c5c7c0618c28ad379918d8b4ea/
+├── checkpoints # 容器的checkpoint这个功能在当前版本还是experimental状态
+├── config.v2.json # 通用的配置，如容器名称，要执行的命令等
+├── hostconfig.json # 主机相关的配置，跟操作系统平台有关，如cgroup的配置
+```
+
+> checkpoints这个功能很强大，可以在当前node做一个checkpoint，然后再到另一个node上继续运行，相当于无缝的将一个正在运行的进程先暂停，然后迁移到另一个node上并继续运行。
+
 
 
 ### start管理的文件
+
+start的流程：
+
+1. docker（client）发送启动容器命令给dockerd
+
+2. dockerd收到请求后，准备好rootfs，以及一些其它的配置文件，然后通过grpc的方式通知containerd启动容器
+
+3. containerd根据收到的请求以及配置文件位置，创建容器运行时需要的bundle，然后启动shim进程，让它来启动容器
+
+4. shim进程启动后，做一些准备工作，然后调用runc启动容器
+
+- Docker
+  - 准备rootfs
+
+    dockerd做的第一件事情就是准备好容器运行时需要的rootfs，由于在docker create创建容器的时候，容器的所有layer都已经准备好了，现在就差一步将他们合并起来了
+
+  - 准备容器内部需要的文件
+
+    ```shell
+    root@CHNDSI-VS-208:/var/lib/docker/containers# tree 92e2b2e3b8424efee1050e6ddad09e968b28b9c5c7c0618c28ad379918d8b4ea/
+    92e2b2e3b8424efee1050e6ddad09e968b28b9c5c7c0618c28ad379918d8b4ea/
+    ├── 92e2b2e3b8424efee1050e6ddad09e968b28b9c5c7c0618c28ad379918d8b4ea-json.log # 容器的日志文件，后续容器的stdout和stderr都会输出到这个目录。当然如果配置了其它的日志插件的话，日志就会写到别的地方
+    ├── checkpoints
+    ├── config.v2.json
+    ├── hostconfig.json
+    ├── hostname # 里面是容器的主机名，来自于config.v2.json，由docker create命令的-h参数指定，如果没指定的话，就是容器ID的前12位
+    ├── hosts
+    ├── mounts
+    └── resolv.conf # 里面包含了DNS服务器的IP，来自于hostconfig.json，由docker create命令的--dns参数指定，没有指定的话，docker会根据容器的网络类型生成一个默认的，一般是主机配置的DNS服务器或者是docker bridge的IP
+    ```
+
+    除了日志文件外，其它文件在每次容器启动的时候都会自动生成，所以修改他们的内容后只会在当前容器运行的时候生效，容器重启后，配置又都会恢复到默认的状态
+
+  - OCI需要的bundle
+
+    bundle主要包含一个名字叫做config.json的配置文件，dockerd在生成这个文件前，要做一些准备工作，比如创建好cgroup的相关目录，准备网络相关的配置等，然后才生成config.json文件
+
+    bundle的路径放在/run/containerd/io.containerd.runtime.v2.task/moby/[container-id]下，只有当容器运行时，目录才存在，容器停止后该目录被删除掉，下一次启动的时候会再次被创建
+
+    ```shell
+    root@CHNDSI-VS-208:/run/containerd/io.containerd.runtime.v2.task/moby# tree
+    .
+    └── 92e2b2e3b8424efee1050e6ddad09e968b28b9c5c7c0618c28ad379918d8b4ea
+        ├── address
+        ├── config.json
+        ├── init.pid
+        ├── log
+        ├── log.json
+        ├── options.json
+        ├── rootfs
+        ├── runtime
+        └── work -> /var/lib/containerd/io.containerd.runtime.v2.task/moby/92e2b2e3b8424efee1050e6ddad09e968b28b9c5c7c0618c28ad379918d8b4ea
+    ```
+
+  - 准备IO文件
+
+    dockerd还创建了一些跟io相关的命名管道，用来和容器之间进行通信
+
+    比如这里的init-stdin文件用来向容器的stdin中写数据，init-stdout用来接收容器的stdout输出
+
+    /run/docker/containerd/[container-id]
+
+    ```shell
+    root@CHNDSI-VS-208:/run/docker/containerd# tree 92e2b2e3b8424efee1050e6ddad09e968b28b9c5c7c0618c28ad379918d8b4ea/
+    92e2b2e3b8424efee1050e6ddad09e968b28b9c5c7c0618c28ad379918d8b4ea/
+    ├── init-stderr
+    └── init-stdout
+    
+    # 它们被dockerd和containerd-shim-runc-v2两个进程所打开
+    root@CHNDSI-VS-208:/run/docker/containerd/92e2b2e3b8424efee1050e6ddad09e968b28b9c5c7c0618c28ad379918d8b4ea# lsof *
+    COMMAND       PID USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
+    dockerd    657909 root   24u  FIFO   0,24      0t0  974 init-stdout
+    dockerd    657909 root   25u  FIFO   0,24      0t0  976 init-stderr
+    dockerd    657909 root   28r  FIFO   0,24      0t0  974 init-stdout
+    dockerd    657909 root   29r  FIFO   0,24      0t0  976 init-stderr
+    container 1629196 root   14u  FIFO   0,24      0t0  974 init-stdout
+    container 1629196 root   16w  FIFO   0,24      0t0  974 init-stdout
+    container 1629196 root   17u  FIFO   0,24      0t0  974 init-stdout
+    container 1629196 root   18r  FIFO   0,24      0t0  974 init-stdout
+    container 1629196 root   19u  FIFO   0,24      0t0  976 init-stderr
+    container 1629196 root   20w  FIFO   0,24      0t0  976 init-stderr
+    container 1629196 root   21u  FIFO   0,24      0t0  976 init-stderr
+    container 1629196 root   22r  FIFO   0,24      0t0  976 init-stderr
+    ```
+
+- Containerd
+
+  containerd主要功能是启动并管理运行时的所有contianer
+
+  - 准备相关文件，/run/containerd/io.containerd.runtime.v2.task/moby/[container-id]
+    - log.json：runc如果运行失败的话，会写日志到这个文件
+    - init.pid：容器启动后，runc会将容器中第一个进程的pid写到这个文件中（外面pid namespace中的pid）
+  - 启动runc
+  - 监听容器
+
+- runc
+
+  runc会被调用两次，第一次是shim调用runc create创建容器，第二次是containerd调用runc start启动容器
+
+  - 创建容器
+
+    runc会根据参数中传入的bundle目录名称以及容器ID，创建容器
+
+    创建容器就是启动进程/proc/self/exe init，由于/proc/self/exe指向的是自己，所以相当于fork了一个新进程，并且新进程启动的参数是init，相当于运行了runc init，runc init会根据配置创建好相应的namespace，同时创建一个叫exec.fifo的临时文件，等待其它进程打开这个文件，如果有其它进程打开这个文件，则启动容器
+
+  - 启动容器
+
+    启动容器就是运行runc start，它会打开并读一下文件exec.fifo，这样就会触发runc init进程启动容器，如果runc start读取该文件没有异常，将会删掉文件exec.fifo，所以一般情况下我们看不到文件exec.fifo
+
+    runc创建的容器会在/run/docker/runtime-runc/moby/[container-id]下，有一个state.json文件，包含当前容器详细的配置及状态信息
+
+    ```shell
+    root@CHNDSI-VS-208:/run/docker/runtime-runc/moby# tree
+    .
+    └── 92e2b2e3b8424efee1050e6ddad09e968b28b9c5c7c0618c28ad379918d8b4ea
+        └── state.json
+    ```
 
 
 
