@@ -79,6 +79,20 @@ root@CHNDSI-VS-208:/var/lib/docker/image/overlay2/imagedb/content/sha256# cat 00
         ]
     }
 }
+
+# docker inspect [image]也可以查看rootfs
+{
+	"RootFS": {
+		"Type": "layers",
+		"Layers": [
+			"sha256:417cb9b79adeec55f58b890dc9831e252e3523d8de5fd28b4ee2abb151b7dc8b",
+			"sha256:33158bca9fb5a5ac2884b9f220006d7c000b5e7c5eac49890a651902a8d09574",
+			"sha256:13de6ee856e951f4a03d2a3efd38aaf2d83c98d6b6ab117186e6384c9f074c5a",
+			"sha256:eb364b1a02cae2de904b549073f5c3fcddd2c8949697f36b58f3bd5bb739fea1",
+			"sha256:ce8b3ebd2ee7ca142b968754b3314a9d0c7e60dd97dbd8bde04481b2a9f40a6f"
+		]
+	}
+}
 ```
 
 - layer的diff_id和digest的对应关系
@@ -125,6 +139,48 @@ chained，需要用到所有祖先layer的信息，从而保证根据chainid得�
 # 在docker save导出image的时候会用到
 root@CHNDSI-VS-208:/var/lib/docker/image/overlay2/layerdb/sha256/417cb9b79adeec55f58b890dc9831e252e3523d8de5fd28b4ee2abb151b7dc8b# ls
 cache-id  diff  size  tar-split.json.gz
+
+root@CHNDSI-VS-208:/var/lib/docker/image/overlay2/layerdb/sha256# ls -al
+drwx------ 2 root root 4096 12月  4 16:45 417cb9b79adeec55f58b890dc9831e252e3523d8de5fd28b4ee2abb151b7dc8b
+drwx------ 2 root root 4096 12月  4 16:47 7b9df3e1ea19fce17e363ef9775a9ddbb871cda1d9994458ac80d046334749f1
+drwx------ 2 root root 4096 12月  4 16:47 82c371c0fc909e86ac89663511194d0a184b997a71deaa29caafa9bbc03bf16d
+drwx------ 2 root root 4096 12月  4 16:45 be3d0df9529b161eafa20b3417d99f3564ee820ba3357b7807cb6d75d7777867
+drwx------ 2 root root 4096 12月  4 16:47 fc88dca1b575dd53f3b62a2b9f47c6ee915a46069bb49762868b68503a58e7c2
+
+# 计算chainid
+# 第一层chainid就是它本身
+sha256:417cb9b79adeec55f58b890dc9831e252e3523d8de5fd28b4ee2abb151b7dc8b
+
+# 第二层chainid
+root@CHNDSI-VS-208:/var/lib/docker/image/overlay2/layerdb/sha256# echo -n "sha256:417cb9b79adeec55f58b890dc9831e252e3523d8de5fd28b4ee2abb151b7dc8b sha256:33158bca9fb5a5ac2884b9f220006d7c000b5e7c5eac49890a651902a8d09574" | sha256sum -
+be3d0df9529b161eafa20b3417d99f3564ee820ba3357b7807cb6d75d7777867  -
+
+# 第三层chainid，由上一层sum出来的sha256值与第三层sha256值sum
+root@CHNDSI-VS-208:/var/lib/docker/image/overlay2/layerdb/sha256# echo -n "sha256:be3d0df9529b161eafa20b3417d99f3564ee820ba3357b7807cb6d75d7777867 sha256:13de6ee856e951f4a03d2a3efd38aaf2d83c98d6b6ab117186e6384c9f074c5a" | sha256sum -
+82c371c0fc909e86ac89663511194d0a184b997a71deaa29caafa9bbc03bf16d  -
+
+# 第四层chainid
+root@CHNDSI-VS-208:/var/lib/docker/image/overlay2/layerdb/sha256# echo -n "sha256:82c371c0fc909e86ac89663511194d0a184b997a71deaa29caafa9bbc03bf16d sha256:eb364b1a02cae2de904b549073f5c3fcddd2c8949697f36b58f3bd5bb739fea1" | sha256sum -
+7b9df3e1ea19fce17e363ef9775a9ddbb871cda1d9994458ac80d046334749f1  -
+
+# 第五层chainid
+root@CHNDSI-VS-208:/var/lib/docker/image/overlay2/layerdb/sha256# echo -n "sha256:7b9df3e1ea19fce17e363ef9775a9ddbb871cda1d9994458ac80d046334749f1 sha256:ce8b3ebd2ee7ca142b968754b3314a9d0c7e60dd97dbd8bde04481b2a9f40a6f" | sha256sum -
+fc88dca1b575dd53f3b62a2b9f47c6ee915a46069bb49762868b68503a58e7c2  -
+
+# 获取各层chainid对应的cache-id
+417cb9b79adeec55f58b890dc9831e252e3523d8de5fd28b4ee2abb151b7dc8b -> fb47e66c771206be04a06049138231331559e806e2cb5bac39c39b7b537e43af
+
+be3d0df9529b161eafa20b3417d99f3564ee820ba3357b7807cb6d75d7777867/cache-id
+2c8869080cc4d469e92d46f8473c246f186f74a003bd8d9773f695e3043ff97b
+
+82c371c0fc909e86ac89663511194d0a184b997a71deaa29caafa9bbc03bf16d -> 
+fddf4c6a3d84b8869a2b490c7fa68101617410fff29f79c27f0dfbcca3760000
+
+7b9df3e1ea19fce17e363ef9775a9ddbb871cda1d9994458ac80d046334749f1 -> 
+f9fa1f907917094fc6d7fa1b02248ba2a748a9178075cd39dedda00573e47dac
+
+fc88dca1b575dd53f3b62a2b9f47c6ee915a46069bb49762868b68503a58e7c2 -> 
+8309b39d0999be7c8fb98146b4d02a4d24d82b0bcff4de39b10d4d29c8820154
 ```
 
 - layer的数据
@@ -133,16 +189,20 @@ layer的文件放在/var/lib/docker/[stoge-driver]目录下，根据上面计算
 
 l文件夹包含了短签名的软链，链接到diff目录下
 
-docker inspect [container]可以查看merge后的容器路径GraphDriver.Data
+docker inspect [image]可以查看merge后的容器路径GraphDriver.Data
 
 ```json
 {
   "GraphDriver": {
     "Data": {
-      "LowerDir": "/var/lib/docker/overlay2/519e43614d77e173ebd53d4b5ca3d770cdf4cdaeebc06951b2bf1c8051bf9623-init/diff:/var/lib/docker/overlay2/90319a180aa85b21f68715d05bf146e2eb5773c62047f56bb28ec74479489a49/diff:/var/lib/docker/overlay2/74b09b2563b7bffad9eb130240ddcce0e3fc7f9ee617aa2246d3b54ef3769a27/diff:/var/lib/docker/overlay2/8506ee95a91c488225acff25d3a46b9b4e0bf408a6c2d55e50ef3820eba938ed/diff:/var/lib/docker/overlay2/185f0f1a65a3085d9b35a895f54495a40fb26492c383dabecba268a1fd4d0e31/diff:/var/lib/docker/overlay2/03be68990e5d5f43b6395720a93840428f56cdd5c2c3fb54f2243f86952cc6d5/diff:/var/lib/docker/overlay2/7561da8529d7d28d1a8aced13975a4ae9724f8d5e97cd5378b03e6c0a6407e35/diff:/var/lib/docker/overlay2/f112beeeea674e0c1bc3fbdba8e7404a21bb0eef3a755b66ca94d0cb52a1577d/diff:/var/lib/docker/overlay2/c82cddb579c703c9509f1978986f19c145f5bc6049175654c3d9faf1ce8352c5/diff:/var/lib/docker/overlay2/857a568744f619eb587245b1c5f0f8945746f6b18ac736dff962c455572cd4ff/diff:/var/lib/docker/overlay2/74a7d017a0556c8f1b4de3d5fb82fbaaf1e4fc3e6b18b201faa527915d55d507/diff:/var/lib/docker/overlay2/2e8d49c207cefcfc105bd43c7b50b2ce42cd6a9e19475bb7291ed69748a96f11/diff:/var/lib/docker/overlay2/8751467a51b13d676bd1f72d6b117310b0f7c93732d5033164d525ce23d9033a/diff:/var/lib/docker/overlay2/69374c04c2e8436c65fc27dcadf6e00ec486eec855edda75098e0b45101f8b61/diff:/var/lib/docker/overlay2/01574bd97d55397bee2bfd3cfc291df07edc64e11deb7078cdc32e50c1f84ca5/diff:/var/lib/docker/overlay2/4d340379817f2ed8d2a47b304dfa9a6698f6d337559186f62d3e949e37e7e889/diff:/var/lib/docker/overlay2/27cc7030ff8eb06dcf108d1a9ff412e3242b66ee8b311d83f8623af3b99561c8/diff",
-      "MergedDir": "/var/lib/docker/overlay2/519e43614d77e173ebd53d4b5ca3d770cdf4cdaeebc06951b2bf1c8051bf9623/merged",
-      "UpperDir": "/var/lib/docker/overlay2/519e43614d77e173ebd53d4b5ca3d770cdf4cdaeebc06951b2bf1c8051bf9623/diff",
-      "WorkDir": "/var/lib/docker/overlay2/519e43614d77e173ebd53d4b5ca3d770cdf4cdaeebc06951b2bf1c8051bf9623/work"
+      "LowerDir":
+      	"/var/lib/docker/overlay2/f9fa1f907917094fc6d7fa1b02248ba2a748a9178075cd39dedda00573e47dac/diff:
+      	/var/lib/docker/overlay2/fddf4c6a3d84b8869a2b490c7fa68101617410fff29f79c27f0dfbcca3760000/diff:
+      	/var/lib/docker/overlay2/2c8869080cc4d469e92d46f8473c246f186f74a003bd8d9773f695e3043ff97b/diff:
+      	/var/lib/docker/overlay2/fb47e66c771206be04a06049138231331559e806e2cb5bac39c39b7b537e43af/diff", # 最底层
+      "MergedDir": "/var/lib/docker/overlay2/8309b39d0999be7c8fb98146b4d02a4d24d82b0bcff4de39b10d4d29c8820154/merged", # 最上层
+      "UpperDir": "/var/lib/docker/overlay2/8309b39d0999be7c8fb98146b4d02a4d24d82b0bcff4de39b10d4d29c8820154/diff",
+      "WorkDir": "/var/lib/docker/overlay2/8309b39d0999be7c8fb98146b4d02a4d24d82b0bcff4de39b10d4d29c8820154/work"
     },
     "Name": "overlay2"
   }
@@ -152,6 +212,12 @@ docker inspect [container]可以查看merge后的容器路径GraphDriver.Data
 
 
 ### create管理的文件
+
+dockerd在收到客户端的创建容器请求后，做了两件事情
+
+一是准备容器需要的layer
+
+二是检查客户端传过来的参数，并和image配置文件中的参数进行合并，然后存储成容器的配置文件
 
 
 
