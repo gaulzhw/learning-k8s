@@ -120,3 +120,31 @@ k8s中设置memory的request、limit
 - request不修改memory cgroup里的参数，只是在scheduler里调度的时候做计算看是否可以分配内存
 
 - limit设置memory.limit_in_bytes的值
+
+
+
+## swap
+
+一般容器的节点配置上都是把swap功能给关闭
+
+kubelet缺省不能在打开swap的节点上运行，配置"failSwapOn: false"参数可以允许kubelet运行在swap enabled的节点上运行
+
+
+
+- 节点上开启swap，linux系统里swappiness的概念
+
+如果打开了swap功能，可以配置memory.swappiness参数：
+
+swappiness 的取值范围在 0 到 100，值为 100 的时候系统平等回收匿名内存和 Page Cache 内存；一般缺省值为 60，就是优先回收 Page Cache；即使 swappiness 为 0，也不能完全禁止 Swap 分区的使用，就是说在内存紧张的时候，也会使用 Swap 来回收匿名内存
+
+/proc/zoneinfo可以查看水位线
+
+- 容器上开启swap，memory cgroup里swappiness的概念
+
+memory.swappiness可以控制这个memory cgroup控制组下匿名内存和page cache的回收
+
+在memory cgroup的控制组里，如果设置了memory.swappiness，它会覆盖全局的swappiness
+
+当容器内的memory.swappiness=0的时候，对匿名页的回收是始终禁止的，也就是始终都不会使用swap空间，当容器申请的内存超过limit之后就发生OOM kill
+
+可以在宿主机节点上打开swap空间，同时在容器内对应的memory cgroups控制组里，单独配置memory.swappiness参数，如果容器不需要swap，可以设置为0，从而保证不同容器对swap功能的依赖
