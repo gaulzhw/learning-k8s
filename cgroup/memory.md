@@ -34,6 +34,54 @@ points += adj;
 
 
 
+> Memory Cgroup OOM 不是真正依据内存使用量 memory.usage_in_bytes，而是依据 working set（使用量减去非活跃 file-backed 内存）
+>
+> working set 计算公式：working_set = memory.usage_in_bytes - total_inactive_file
+>
+> 内存使用量计算公式：memory.usage_in_bytes = memory.stat[rss] + memory.stat[cache] + memory.kmem.usage_in_bytes (该 memcg 内核内存使用量)
+>
+> https://github.com/google/cadvisor/blob/master/container/libcontainer/handler.go#L870
+
+
+
+RSS的内存，就是在当前memory cgroup控制组里所有进程的RSS的综合
+
+Page Cache是控制组里的进程读写磁盘文件后，被放到Page Cache里的物理内存
+
+```c
+static void mem_cgroup_charge_statistics(
+  struct mem_cgroup *memcg, 
+  struct page *page, 
+  bool compound, 
+  int nr_pages)
+```
+
+Memory Cgroup中有一个参数memory.stat，可以显示在当前控制组里各种内存类型的实际开销
+
+```shell
+[root memory] # cat memory.limit_in_bytes
+104857600
+[root memory] # cat memory.usage_in_bytes
+104783872
+[root memory] # cat memory.stat
+cache 99508224
+rss 1826816
+
+# mem_alloc 50MB
+
+[root memory] # cat memory.limit_in_bytes
+104857600
+[root memory] # cat memory.usage_in_bytes
+104849408
+[root memory] # cat memory.stat
+cache 46632960
+rss 54759424
+```
+
+> 判断容器真实的内存使用量，不能用Memory Cgroup里的memory.usage_in_bytes，而需要用memory.stat里的rss值
+
+
+
 如果memory.oom_control设置为1，那么容器中的进程在使用内存到达memroy.limit_in_bytes之后，不会被kill掉，但memalloc进程会被暂停申请内存，状态会因等待资源申请而变成TASK INTERRUPTABLE
 
 
