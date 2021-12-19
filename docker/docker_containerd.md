@@ -92,3 +92,9 @@ Containerd 的 stream 服务在 K8S 不同版本运行时场景下配置不同�
 | :------------- | :----------------------------------------------- | :----------------------------------------------------------- |
 | 谁负责调用 CNI | Kubelet 内部的 docker-shim                       | Containerd 内置的 cri-plugin（containerd 1.1 以后）          |
 | 如何配置 CNI   | Kubelet 参数 `--cni-bin-dir` 和 `--cni-conf-dir` | Containerd 配置文件（toml）： `[plugins.cri.cni]` `bin_dir = "/opt/cni/bin"` `conf_dir = "/etc/cni/net.d"` |
+
+
+
+## 迁移
+
+[容器运行时从 docker 到 containerd 的迁移](https://www.infoq.cn/article/odslclsjvo8bnx*mbrbk)
