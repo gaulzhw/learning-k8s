@@ -43,3 +43,9 @@ OverlayFS的一个mount命令牵涉到四类目录：lower、upper、merged、wo
 - work：只是一个存放临时文件的目录，如果有文件修改，就会在中间过程中临时存放文件在这里
 
 ![overlayfs-mount](img/overlayfs-mount.png)
+
+
+
+启动容器后，在容器内查看df，根目录就是overlay类型
+
+![container-fs](img/container-fs.png)
