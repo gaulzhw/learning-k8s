@@ -2,11 +2,6 @@
 
 
 
-- cgroup
-
-  https://time.geekbang.org/column/intro/100063801?tab=catalog
-
-  memory OOM score
-
-- docker 文件存储路径，/var/lib、/var/run都是存储的什么信息
+- k8s upgrade v0.10 -> v0.17, https://mp.weixin.qq.com/s/fAp9bq7hhFDjn8MvP5mNgw
+- client-go, https://www.cnblogs.com/orchidzjl/p/14768781.html
 
