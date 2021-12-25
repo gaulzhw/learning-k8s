@@ -12,6 +12,16 @@ Informer另外一块内容在于提供了事件Handler机制，并触发回调�
 
 
 
+## 资源定义
+
+Group、Version、Resource
+
+Group、Version、Kind
+
+![gvr_gvk](img/gvr_gvk.jpg)
+
+
+
 ## 客户端
 
 1. RestClient：最基础的，相当于底层数据结构，可以通过RestClient提供的RestFul方法，如Get(), Put(), Post(), Delete()进行交互
