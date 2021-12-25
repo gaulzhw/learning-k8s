@@ -14,9 +14,31 @@ Informer另外一块内容在于提供了事件Handler机制，并触发回调�
 
 ## 资源定义
 
-Group、Version、Resource
+Group、Version、Resource：GVK体现在yaml的结构体中，包含apiVersion、kind
 
-Group、Version、Kind
+Group、Version、Kind：GVR体现在REST api请求信息中
+
+
+
+GVR通常用于构建REST api请求，例如apps, v1, deployments表示一个资源
+
+```shell
+GET /apis/apps/v1/namespaces/{namespace}/deployments/{name}
+```
+
+k8s提供的api-resources命令可以显示支持的kind、resource及之间的mapping关系
+
+以deployment为例，GVK为apps/v1/Deployment，GVR为apps/v1/deployments
+
+```shell
+$ kubectl api-resources --api-group=apps
+NAME                  SHORTNAMES   APIGROUP   NAMESPACED   KIND
+controllerrevisions                apps       true         ControllerRevision
+daemonsets            ds           apps       true         DaemonSet
+deployments           deploy       apps       true         Deployment
+replicasets           rs           apps       true         ReplicaSet
+statefulsets          sts          apps       true         StatefulSet
+```
 
 ![gvr_gvk](img/gvr_gvk.jpg)
 
