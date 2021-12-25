@@ -2,6 +2,25 @@
 
 
 
+```go
+$ tree vendor/k8s.io/client-go -L 1
+vendor/k8s.io/client-go
+├── discovery  # Discoveryclient 发现客户端
+├── dynamic # DynamicClient 动态客户端，对任意kubernetes对象执行通用的操作，不同于 clientset，dynamic client 返回的对象是一个 map[string]interface{}，如果一个 controller 中需要控制所有的 API，可以使用dynamic client，目前它在 garbage collector 和 namespace controller中被使用。
+├── informers # 每种Kubernetes资源的informer实现
+├── kubernetes # ClientSet客户端，基于restClient封装
+├── listers # 为每种Kubernetes资源提供Lister功能，该功能对Get和List请求提供只读的缓存数据
+├── plugin # 提供OpenStack,GCP和Azure等云服务商授权插件
+├── rest # RESTClient客户端，对Kubernetes API server执行RESTful操作（Get(),Put(),Post(),Delete()等）
+├── restmapper
+├── scale # ScaleClient客户端，用于扩容或缩容Deployment,ReplicaSet,Replication Controller等资源对象
+├── tools # 提供常用工具，例如SharedInformer、Reflector、DealtFIFO及Indexers，提供查询和缓存机制，以减少向kub-apiserver发起的请求数；client-go controller逻辑在此
+├── transport # 提供安全的TCP连接，支持HTTP Stream，某些操作需要在客户端和容器之间传输二进制流，如exec,attach等
+└── util # 提供常用方法，如WokrQueue工作队列，Certificate证书管理等
+```
+
+
+
 Informer是client-go中较为高级的类型。无论是Kubernetes内置的还是自己实现的Controller，都会用到它。
 
 Informer设计为List/Watch的方式。Informer在初始化的时先通过List从Kubernetes中取出资源的全部对象，并同时缓存，然后通过Watch的机制去监控资源，这样的话，通过Informer及其缓存就可以直接和Informer交互而不是每次都和Kubernetes交互。
