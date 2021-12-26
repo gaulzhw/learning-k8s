@@ -27,7 +27,11 @@ Informer设计为List/Watch的方式。Informer在初始化的时先通过List�
 
 Informer另外一块内容在于提供了事件Handler机制，并触发回调，这样上层应用如Controller就可以基于回调处理具体业务逻辑。因为Informer通过List、Watch机制可以监控到所有资源的所有事件，只要给Informer添加ResourceEventHandler的回调函数实例去实现 OnAdd(obj interface{}), OnUpdate(oldObj, newObj interface{}), OnDelete(obj interface{})这三个方法，就可以处理好资源的创建、更新和删除操作。
 
+
+
 ![client-go](img/client-go.jpg)
+
+在client-go中，informer对象就是一个controller struct (controller即informer)，图的上半部分是client-go内部核心数据流转机制，下半部分为用户自定义控制器的核心实现逻辑。
 
 
 
@@ -101,11 +105,13 @@ statefulsets          sts          apps       true         StatefulSet
 
 1. Reflector
 
-   用于监控（Watch）指定的kubernetes资源，当监控的资源发生变化时，触发相应的变更事件，如add、update、delete等，并将其资源对象存入本地缓存DeltaFIFO中,然后Informer会从队列里面取数据。
+   用于监控（Watch）指定的kubernetes资源，当监控的资源发生变化时，触发相应的处理，如add、update、delete等，并将其资源对象存入本地缓存DeltaFIFO中，然后Informer会从队列里面取数据。Reflector类似一个生产者。
 
 2. DeltaFIFO
 
    DeltaFIFO可以分开理解，FIFO是一个先进先出的队列，它拥有队列操作的基本方法，例如Add、Update、Delete、List、Pop、Close等，而Delta是一个资源对象存储，它可以保存资源对象的操作类型，例如Added（添加）操作类型、Updated（更新）操作类型、Deleted（删除）操作类型、Sync（同步）操作类型等。
+
+   DeltaFIFO中有两个重要的方法，queueActionLocked、Pop，分别作为生产者方法和消费者方法。一方对接reflector来生产数据并将数据加入到队列中，唤醒消费者；另一方对接informer controller的processLoop（该方法进而会调用用户定义的EventHandler）来消费队列中的数据。
 
 3. Informer
 
@@ -114,3 +120,39 @@ statefulsets          sts          apps       true         StatefulSet
 4. indexer
 
    用来存储资源对象并自带索引功能的本地存储，Reflector从DeltaFIFO消费出来的资源对象存储至indexer。indexer与etcd集群保持一致。client-go可以很方便的从本地存储中读取响应的资源对象数据，而无需每次从etcd读取，以减轻kubernetes apiserver对etcd的压力。
+   
+   ```go
+   // 索引器函数，接受一个资源对象，返回检索结果列表（字符串列表，表示根据资源对像里特定字段分析出来的索引列表）
+   type IndexFunc func(obj interface{}) ([]string, error)
+   
+   // 缓存数据（其实存储的是根据indexFunc分析到的索引值及所关联的所有资源对像的key）
+   type Index map[string]sets.String
+   
+   // 保存了索引器函数，key为索引器名称，value为索引器函数
+   type Indexers map[string]IndexFunc
+   
+   // 缓存器，key为缓存器名称（一般情况下这个值与索引器名称相同），value为缓存数据
+   type Indices map[string]Index
+   ```
+   
+   ![indexer](img/indexer.png)
+
+
+
+## 工作流程
+
+![client-go-flow](img/client-go-flow.png)
+
+1. Shared Informer
+
+   informers.NewSharedInformerFactory对具体资源的informer进行实例化，不会对相同资源的infromer进行多次真实的实例化，可以使相同的informer共享一个R Reflector
+
+1. Listener (AddEventHandler)
+
+2. HandleDeltas (消费者)
+
+3. Reflector (生产者)
+
+4. Resync
+
+   在Reflector启动的时候，在一个单独的goroutine中会定期的执行Resync操作，这个操作其实是定期执行了Delta.Resync方法，将本地缓存Indexer中的资源对象同步到DeltaFIFO中，并将这些资源对象设置为Sync的操作类型，最终这些资源对象会转换成Updated的事件触发所有的Listener进行处理。Resync机制，我们可以理解为定期全量同步一次所有资源对像，并触发那些开启了定期同步机制的Listener进行业务侧处理（最终会以Updated类型事件触发用户自定义的EventHandler）。
