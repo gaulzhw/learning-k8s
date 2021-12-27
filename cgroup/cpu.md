@@ -32,7 +32,7 @@ wa、hi、si，这些IO或者中断相关的CPU使用，CPU Cgroup不会去做�
 
 
 - cpu.cfs_quota_us：调度周期，一般值是100000，以microseconds为单位，也就是100ms
-- cpu.cfs_period_us：在一个调度周期里呗允许的运行时间，单位同上
+- cpu.cfs_period_us：在一个调度周期里被允许的运行时间，单位同上
 - cpu.shares：CPU cgroup对于控制组之间的CPU分配比例，缺省值是1024
 
 
