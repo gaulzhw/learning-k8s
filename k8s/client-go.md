@@ -156,3 +156,11 @@ statefulsets          sts          apps       true         StatefulSet
 4. Resync
 
    在Reflector启动的时候，在一个单独的goroutine中会定期的执行Resync操作，这个操作其实是定期执行了Delta.Resync方法，将本地缓存Indexer中的资源对象同步到DeltaFIFO中，并将这些资源对象设置为Sync的操作类型，最终这些资源对象会转换成Updated的事件触发所有的Listener进行处理。Resync机制，我们可以理解为定期全量同步一次所有资源对像，并触发那些开启了定期同步机制的Listener进行业务侧处理（最终会以Updated类型事件触发用户自定义的EventHandler）。
+
+
+
+## References
+
+https://www.jianshu.com/p/61f2d1d884a9
+
+https://segmentfault.com/a/1190000039031170
