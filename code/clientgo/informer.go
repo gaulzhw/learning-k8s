@@ -1,4 +1,4 @@
-package informer
+package clientgo
 
 import (
 	"flag"
