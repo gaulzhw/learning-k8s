@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/gaulzhw/learning-k8s/etcd"
+	"github.com/gaulzhw/learning-k8s/informer"
 )
 
 func main() {
@@ -10,5 +10,7 @@ func main() {
 	// clientgo.InitDynamicClient()
 	// clientgo.InitDiscoveryClient()
 
-	etcd.NewEtcdClient()
+	//etcd.NewEtcdClient()
+
+	informer.Start()
 }
