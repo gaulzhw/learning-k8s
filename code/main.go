@@ -5,5 +5,9 @@ import (
 )
 
 func main() {
-	clientgo.Start()
+	// informer
+	//clientgo.Start()
+
+	// controller-manager
+	clientgo.StartController()
 }
