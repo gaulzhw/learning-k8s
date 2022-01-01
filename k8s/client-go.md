@@ -33,11 +33,29 @@ vendor/k8s.io/client-go
 
 ## 整体架构
 
-![client-go](img/client-go.jpg)
+![client-go](img/client-go-arch1.jpg)
 
 在client-go中，informer对象就是一个controller struct (controller即informer)
 
 上半部分是client-go内部核心数据流转机制，下半部分为用户自定义控制器的核心实现逻辑
+
+
+
+![client-go](img/client-go-arch2.png)
+
+
+
+包含的主要组件：
+
+- Informer
+
+- Reflector
+
+- DeltaFIFO
+
+- Indexer
+
+- WorkQueue
 
 
 
@@ -479,7 +497,7 @@ statefulsets          sts          apps       true         StatefulSet
 
 ## References
 
-https://www.freesion.com/article/28331139738
+https://www.freesion.com/article/39161315033
 
 https://www.jianshu.com/p/61f2d1d884a9
 
