@@ -1,6 +1,16 @@
 # client-go
 
+https://github.com/kubernetes/client-go
 
+依赖项目：
+
+k8s.io/api
+
+k8s.io/apimachinery
+
+
+
+## 代码结构
 
 ```go
 $ tree vendor/k8s.io/client-go -L 1
@@ -21,17 +31,325 @@ vendor/k8s.io/client-go
 
 
 
-Informer是client-go中较为高级的类型。无论是Kubernetes内置的还是自己实现的Controller，都会用到它。
-
-Informer设计为List/Watch的方式。Informer在初始化的时先通过List从Kubernetes中取出资源的全部对象，并同时缓存，然后通过Watch的机制去监控资源，这样的话，通过Informer及其缓存就可以直接和Informer交互而不是每次都和Kubernetes交互。
-
-Informer另外一块内容在于提供了事件Handler机制，并触发回调，这样上层应用如Controller就可以基于回调处理具体业务逻辑。因为Informer通过List、Watch机制可以监控到所有资源的所有事件，只要给Informer添加ResourceEventHandler的回调函数实例去实现 OnAdd(obj interface{}), OnUpdate(oldObj, newObj interface{}), OnDelete(obj interface{})这三个方法，就可以处理好资源的创建、更新和删除操作。
-
-
+## 整体架构
 
 ![client-go](img/client-go.jpg)
 
-在client-go中，informer对象就是一个controller struct (controller即informer)，图的上半部分是client-go内部核心数据流转机制，下半部分为用户自定义控制器的核心实现逻辑。
+在client-go中，informer对象就是一个controller struct (controller即informer)
+
+上半部分是client-go内部核心数据流转机制，下半部分为用户自定义控制器的核心实现逻辑
+
+
+
+## 数据流转
+
+![client-go-dataflow](img/client-go-dataflow.jpeg)
+
+Informer分为三个部分，可以理解为三大逻辑：
+
+1. Reflector，主要是把从API Server数据获取到的数据放到DeltaFIFO队列中，充当生产者角色
+
+2. SharedInformer，主要是从DeltaFIFIO队列中获取数据并分发数据，充当消费者角色
+
+3. Indexer，作为本地缓存的存储组件存在
+
+
+
+### Reflector
+
+tools/cache/reflector.go
+
+Reflector主要看Run、ListAndWatch、watchHandler
+
+```go
+// Run starts a watch and handles watch events. Will restart the watch if it is closed.
+// Run will exit when stopCh is closed.
+// 开始时执行Run，上一层调用的地方是 controller.go中的Run方法
+func (r *Reflector) Run(stopCh <-chan struct{}) {
+    klog.V(3).Infof("Starting reflector %v (%s) from %s", r.expectedTypeName, r.resyncPeriod, r.name)
+    wait.Until(func() {
+         // 启动后执行一次ListAndWatch
+        if err := r.ListAndWatch(stopCh); err != nil {
+            utilruntime.HandleError(err)
+        }
+    }, r.period, stopCh)
+}
+```
+
+```go
+// and then use the resource version to watch.
+// It returns error if ListAndWatch didn't even try to initialize watch.
+func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
+  	// Attempt to gather list in chunks, if supported by listerWatcher, if not, the first
+  	// list request will return the full response.
+  	pager := pager.New(pager.SimplePageFunc(func(opts metav1.ListOptions) (runtime.Object, error) {
+    // 这里是调用了各个资源中的ListFunc函数,例如如果v1版本的Deployment
+    // 则调用的是informers/apps/v1/deployment.go中的ListFunc
+    return r.listerWatcher.List(opts)
+  	}))
+    ...
+    // 从API SERVER请求一次数据 获取资源的全部Object
+    list, paginatedResult, err = pager.List(context.Background(), metav1.ListOptions{ResourceVersion: r.relistResourceVersion()})
+    ...
+
+    options = metav1.ListOptions{
+      	ResourceVersion: resourceVersion,
+      	// We want to avoid situations of hanging watchers. Stop any wachers that do not
+      	// receive any events within the timeout window.
+      	TimeoutSeconds: &timeoutSeconds,
+      	// To reduce load on kube-apiserver on watch restarts, you may enable watch bookmarks.
+      	// Reflector doesn't assume bookmarks are returned at all (if the server do not support
+      	// watch bookmarks, it will ignore this field).
+      	AllowWatchBookmarks: true,
+    }
+    w, err := r.listerWatcher.Watch(options)
+    // 处理Watch中的数据并且将数据放置到DeltaFIFO当中
+    if err := r.watchHandler(start, w, &resourceVersion, resyncerrc, stopCh); err != nil {
+      	...
+    }
+...
+}
+```
+
+```go
+// watchHandler watches w and keeps *resourceVersion up to date.
+func (r *Reflector) watchHandler(start time.Time, w watch.Interface, resourceVersion *string, errc chan error, stopCh <-chan struct{}) error {
+...
+  		switch event.Type {
+      // store就是DeltaFIFO
+			case watch.Added:
+				  err := r.store.Add(event.Object)
+				  ...
+			case watch.Modified:
+				  err := r.store.Update(event.Object)
+				  ...
+			case watch.Deleted:
+				  err := r.store.Delete(event.Object)
+				  ...
+      }
+...
+}
+```
+
+1. 初始化时从API Server请求数据
+2. 监听后续从Watch推送来的数据
+
+
+
+### SharedInformer
+
+tools/cache/shared_informer.go
+
+SharedInformer主要看HandleDeltas方法，消费消息然后分发数据并且存储数据到缓存的地方
+
+```go
+func (s *sharedIndexInformer) HandleDeltas(obj interface{}) error {
+  	// from oldest to newest
+    for _, d := range obj.(Deltas) {
+      	switch d.Type {
+        case Sync, Replaced, Added, Updated:
+          	...
+          	// 查一下是否在Indexer缓存中 如果在缓存中就更新缓存中的对象
+          	if old, exists, err := s.indexer.Get(d.Object); err == nil && exists {
+              	if err := s.indexer.Update(d.Object); err != nil {
+                  	return err
+                }
+                ...
+              	// 把数据分发到Listener
+              	s.processor.distribute(updateNotification{oldObj: old, newObj: d.Object}, isSync)
+            } else {
+                // 没有在Indexer缓存中 把对象插入到缓存中
+              	if err := s.indexer.Add(d.Object); err != nil {
+                return err
+            }
+            s.processor.distribute(addNotification{newObj: d.Object}, false)
+        }
+        case Deleted:
+            if err := s.indexer.Delete(d.Object); err != nil {
+              	return err
+            }
+            s.processor.distribute(deleteNotification{oldObj: d.Object}, false)
+        }
+    }
+    return nil
+}
+```
+
+
+
+### Indexer
+
+tools/cache/thread_safe_store.go
+
+Indexer使用的是threadSafeMap存储数据，是一个线程安全并且带有索引功能的map，数据只会存放在内存中，每次涉及操作都会进行加锁。
+
+```go
+// threadSafeMap implements ThreadSafeStore
+type threadSafeMap struct {
+    lock  sync.RWMutex
+    items map[string]interface{}
+    indexers Indexers
+    indices Indices
+}
+```
+
+
+
+## 补充
+
+### DeltaFIFO
+
+作为 生产者Reflector 和 消费者SharedInformer 的媒介
+
+```go
+type DeltaFIFO struct {
+...
+    items map[string]Deltas // items存储的是以ObjectID为key的这个Object的事件列表
+    queue []string 					// queue存储的是Object的id
+...
+}
+
+type Delta struct {
+    Type   DeltaType
+    Object interface{}
+}
+
+type Deltas []Delta
+
+type DeltaType string
+
+// Change type definition
+const (
+    Added   DeltaType = "Added"
+    Updated DeltaType = "Updated"
+    Deleted DeltaType = "Deleted"
+    Sync DeltaType = "Sync"
+)
+```
+
+![deltafifo-data](img/deltafifo-data.jpeg)
+
+DeltaFIFO顾名思义存放Delta数据的先入先出队列，相当于一个数据的中转站，将数据从一个地方转移另一个地方。
+
+DeltaFIFIO主要看queueActionLocked、Pop、Resync。
+
+```go
+func (f *DeltaFIFO) queueActionLocked(actionType DeltaType, obj interface{}) error {
+...
+    newDeltas := append(f.items[id], Delta{actionType, obj})
+    // 去重处理
+    newDeltas = dedupDeltas(newDeltas)
+
+    if len(newDeltas) > 0 {
+        ... 
+        // pop消息
+        f.cond.Broadcast()
+    ...
+    return nil
+}
+```
+
+```go
+
+func (f *DeltaFIFO) Pop(process PopProcessFunc) (interface{}, error) {
+    f.lock.Lock()
+    defer f.lock.Unlock()
+    for {
+        for len(f.queue) == 0 {
+            //阻塞 直到调用了f.cond.Broadcast()
+            f.cond.Wait()
+        }
+//取出第一个元素
+        id := f.queue[0]
+        f.queue = f.queue[1:]
+        ...
+        item, ok := f.items[id]
+...
+                delete(f.items, id)
+        //这个process可以在controller.go中的processLoop()找到
+        //初始化是在shared_informer.go的Run
+        //最终执行到shared_informer.go的HandleDeltas方法
+        err := process(item)
+        //如果处理出错了重新放回队列中
+        if e, ok := err.(ErrRequeue); ok {
+            f.addIfNotPresent(id, item)
+            err = e.Err
+        }
+         ...
+    }
+}
+```
+
+```go
+
+// 启动的Resync地方是reflector.go的resyncChan()方法，在reflector.go的ListAndWatch方法中的调用开始定时执行。
+go func() {
+    //启动定时任务
+    resyncCh, cleanup := r.resyncChan()
+    defer func() {
+        cleanup() // Call the last one written into cleanup
+    }()
+    for {
+    	  select {
+    		case <-resyncCh:
+    		case <-stopCh:
+      			return
+      	case <-cancelCh:
+      			return
+    		}
+    		// 定时执行   调用会执行到delta_fifo.go的Resync()方法
+    		if r.ShouldResync == nil || r.ShouldResync() {
+      			klog.V(4).Infof("%s: forcing resync", r.name)
+      			if err := r.store.Resync(); err != nil {
+        		resyncerrc <- err
+        		return
+      	}
+    }
+    cleanup()
+    resyncCh, cleanup = r.resyncChan()
+  	}
+}()
+
+func (f *DeltaFIFO) Resync() error {
+    ...
+//从缓存中获取到所有的key
+    keys := f.knownObjects.ListKeys()
+    for _, k := range keys {
+        if err := f.syncKeyLocked(k); err != nil {
+            return err
+        }
+    }
+    return nil
+
+}
+
+func (f *DeltaFIFO) syncKeyLocked(key string) error {
+           //获缓存拿到对应的Object
+        obj, exists, err := f.knownObjects.GetByKey(key)
+    ...
+         //放入到队列中执行任务逻辑
+    if err := f.queueActionLocked(Sync, obj); err != nil {
+        return fmt.Errorf("couldn't queue object: %v", err)
+    }
+    return nil
+}
+```
+
+
+
+### Resync
+
+使用 SharedInformerFactory 去创建 SharedInformer 时，需要填一个 ResyncDuration 的参数
+
+这个参数指的是，多久从 Indexer 缓存中同步一次数据到 Delta FIFO 队列，重新走一遍流程
+
+为什么需要 Resync 机制呢？因为在处理 SharedInformer 事件回调时，可能存在处理失败的情况，定时的 Resync 让这些处理失败的事件有了重新处理的机会。
+
+那么经过 Resync 重新放入 Delta FIFO 队列的事件，和直接从 apiserver 中 watch 得到的事件处理起来有什么不一样呢？Delta FIFO 的队列处理源码中，如果是从 Resync 重新同步到 Delta FIFO 队列的事件，会分发到 updateNotification 中触发 onUpdate 的回调。
+
+
+
+---
 
 
 
@@ -160,6 +478,8 @@ statefulsets          sts          apps       true         StatefulSet
 
 
 ## References
+
+https://www.freesion.com/article/28331139738
 
 https://www.jianshu.com/p/61f2d1d884a9
 
