@@ -16,7 +16,7 @@ k8s.io/apimachinery
 $ tree vendor/k8s.io/client-go -L 1
 vendor/k8s.io/client-go
 ├── discovery  # Discoveryclient 发现客户端
-├── dynamic # DynamicClient 动态客户端，对任意kubernetes对象执行通用的操作，不同于 clientset，dynamic client 返回的对象是一个 map[string]interface{}，如果一个 controller 中需要控制所有的 API，可以使用dynamic client，目前它在 garbage collector 和 namespace controller中被使用。
+├── dynamic # DynamicClient 动态客户端，对任意kubernetes对象执行通用的操作，不同于 clientset，dynamic client 返回的对象是一个 map[string]interface{}，如果一个 controller 中需要控制所有的 API，可以使用dynamic client，目前它在 garbage collector 和 namespace controller中被使用
 ├── informers # 每种Kubernetes资源的informer实现
 ├── kubernetes # ClientSet客户端，基于restClient封装
 ├── listers # 为每种Kubernetes资源提供Lister功能，该功能对Get和List请求提供只读的缓存数据
@@ -57,6 +57,8 @@ vendor/k8s.io/client-go
 
 - WorkQueue
 
+![entity-relation](img/entity-relation.png)
+
 
 
 ## 数据流转
@@ -66,10 +68,48 @@ vendor/k8s.io/client-go
 Informer分为三个部分，可以理解为三大逻辑：
 
 1. Reflector，主要是把从API Server数据获取到的数据放到DeltaFIFO队列中，充当生产者角色
-
 2. SharedInformer，主要是从DeltaFIFIO队列中获取数据并分发数据，充当消费者角色
-
 3. Indexer，作为本地缓存的存储组件存在
+
+sharedIndexInformer结构体上的注释页说明了这一点
+
+```go
+// `*sharedIndexInformer` implements SharedIndexInformer and has three
+// main components.  One is an indexed local cache, `indexer Indexer`.
+// The second main component is a Controller that pulls
+// objects/notifications using the ListerWatcher and pushes them into
+// a DeltaFIFO --- whose knownObjects is the informer's local cache
+// --- while concurrently Popping Deltas values from that fifo and
+// processing them with `sharedIndexInformer::HandleDeltas`.  Each
+// invocation of HandleDeltas, which is done with the fifo's lock
+// held, processes each Delta in turn.  For each Delta this both
+// updates the local cache and stuffs the relevant notification into
+// the sharedProcessor.  The third main component is that
+// sharedProcessor, which is responsible for relaying those
+// notifications to each of the informer's clients.
+type sharedIndexInformer struct {
+    indexer    Indexer
+    controller Controller
+    processor  *sharedProcessor
+    ...
+}
+```
+
+
+
+函数启动流程：
+
+sharedInformerFactory.Start
+
+-> sharedInformer.Run
+
+-> controller.Run
+
+-> controller.processLoop
+
+|- Refelector.Run
+
+|- config.Queue.Pop
 
 
 
