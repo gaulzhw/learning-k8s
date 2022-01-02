@@ -485,6 +485,12 @@ statefulsets          sts          apps       true         StatefulSet
 
 ## 工作流程
 
+代码流程 code/clientgo/informer.go
+
+![informer-start-flow](img/informer-start-flow.png)
+
+
+
 ![client-go-flow](img/client-go-flow.png)
 
 

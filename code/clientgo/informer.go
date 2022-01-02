@@ -41,7 +41,7 @@ func Start() {
 		panic(err.Error())
 	}
 
-	// 初始化 informer factory（为了测试方便这里设置每30s重新 List 一次）
+	// 初始化 informer factory
 	informerFactory := informers.NewSharedInformerFactory(clientset, time.Second*30)
 	// 对 Deployment 监听
 	deployInformer := informerFactory.Apps().V1().Deployments()
