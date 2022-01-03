@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-func Start() {
+func StartInformer() {
 	var err error
 	var config *rest.Config
 

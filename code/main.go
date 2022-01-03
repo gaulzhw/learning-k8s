@@ -9,5 +9,6 @@ func main() {
 	//clientgo.Start()
 
 	// controller-manager
-	clientgo.StartController()
+	//clientgo.StartController()
+	clientgo.StartInformer()
 }
