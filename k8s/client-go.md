@@ -478,6 +478,80 @@ type ResourceEventHandler interface {
 }
 ```
 
+processorListener中比较重要的三个方法：add、pop、run
+
+- add方法是由上层程序调用，也就是往该listener发送一个新的notification，相当于生产者
+
+- pop 和 run 属于消费者，消费从add方法中过来的notification，但是为了防止处理速度(调用handler)跟不上生产速度，设置了一个缓冲区`pendingNotifications`，把从add中过来的notification先加入到pendingNotifications，然后从pendingNotifications读取一个notification后，将notification通过nextCh来进而传递给消费者run
+
+![controller-workflow](img/controller-workflow.png)
+
+```go
+type sharedProcessor struct {
+    // 判断listeners有没有启动
+    listenersStarted bool
+    listenersLock    sync.RWMutex
+    // 所有的processorListener
+    listeners        []*processorListener
+    // 所有的需要sync的processorListener 动态变化
+    syncingListeners []*processorListener
+    clock            clock.Clock
+    wg               wait.Group
+}
+```
+
+sharedProcessor就是管理着所有的processorListener，当拿到一个数据，然后就可以分发给所有的listeners
+
+sharedPorcessor.run方法会以goroutine的方式启动所有的listeners监听
+
+```go
+func (p *sharedProcessor) run(stopCh <-chan struct{}) {
+    func() {
+        p.listenersLock.RLock()
+        defer p.listenersLock.RUnlock()
+        // 以goroutine的方式启动所有的listeners监听
+        for _, listener := range p.listeners {
+            p.wg.Start(listener.run)
+            p.wg.Start(listener.pop)
+        }
+        p.listenersStarted = true
+    }()
+    // 等待有信号告知退出
+    <-stopCh
+    p.listenersLock.RLock()
+    defer p.listenersLock.RUnlock()
+    // 关闭所有listener的addCh channel
+    for _, listener := range p.listeners {
+        // 通知pop()停止 pop()会告诉run()停止
+        close(listener.addCh) // Tell .pop() to stop. .pop() will tell .run() to stop
+    }
+    // 等待所有的pop()和run()方法退出
+    p.wg.Wait() // Wait for all .pop() and .run() to stop
+}
+```
+
+distribute分发信息
+
+```go
+// 分发信息
+func (p *sharedProcessor) distribute(obj interface{}, sync bool) {
+    p.listenersLock.RLock()
+    defer p.listenersLock.RUnlock()
+
+    if sync {
+        // 如果是sync操作 只需要分发给那些resync时间到了的listener即可
+        for _, listener := range p.syncingListeners {
+            listener.add(obj)
+        }
+    } else {
+        // 如果不是sync操作 则通知所有的listeners
+        for _, listener := range p.listeners {
+            listener.add(obj)
+        }
+    }
+}
+```
+
 
 
 ---
