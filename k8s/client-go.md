@@ -271,6 +271,8 @@ tools/cache/thread_safe_store.go
 
 Indexer使用的是threadSafeMap存储数据，是一个线程安全并且带有索引功能的map，数据只会存放在内存中，每次涉及操作都会进行加锁。
 
+![cache-model](img/cache-model.png)
+
 ```go
 // threadSafeMap implements ThreadSafeStore
 type threadSafeMap struct {
@@ -306,6 +308,8 @@ type Indices map[string]Index
 DeltaFIFO可以分开理解，FIFO是一个先进先出的队列，它拥有队列操作的基本方法，例如Add、Update、Delete、List、Pop、Close等，而Delta是一个资源对象存储，它可以保存资源对象的操作类型，例如Added（添加）操作类型、Updated（更新）操作类型、Deleted（删除）操作类型、Sync（同步）操作类型等。
 
 DeltaFIFO中有两个重要的方法，queueActionLocked、Pop，分别作为生产者方法和消费者方法。一方对接reflector来生产数据并将数据加入到队列中，唤醒消费者；另一方对接informer controller的processLoop（该方法进而会调用用户定义的EventHandler）来消费队列中的数据。
+
+![deltafifo-model](img/deltafifo-model.png)
 
 ```go
 type DeltaFIFO struct {
@@ -448,6 +452,29 @@ func (f *DeltaFIFO) syncKeyLocked(key string) error {
         return fmt.Errorf("couldn't queue object: %v", err)
     }
     return nil
+}
+```
+
+
+
+### controller
+
+通过infromer注册event事件处理
+
+![controller-model](img/controller-model.png)
+
+```go
+informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    onAdd,
+		UpdateFunc: onUpdate,
+		DeleteFunc: onDelete,
+})
+
+// client-go/tools/cache/controller.go
+type ResourceEventHandler interface {
+    OnAdd(obj interface{})
+    OnUpdate(oldObj, newObj interface{})
+    OnDelete(obj interface{})
 }
 ```
 
