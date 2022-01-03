@@ -220,7 +220,7 @@ tools/cache/shared_informer.go
 
 controller机制的基础，循环处理object对象，从Reflector取出数据，然后将数据给到Indexer去缓存，提供对象事件的handler接口。
 
-
+![informer-workflow](img/informer-workflow.png)
 
 DeltaFIFO对象的pop方法会阻塞等待信号f.cond.Wait()，DeltaFIFO在处理queueActionLocked方法时会触发广播f.cond.Broadcast()
 
@@ -459,6 +459,88 @@ func (f *DeltaFIFO) syncKeyLocked(key string) error {
 
 ### controller
 
+```go
+type controller struct {
+    config         Config
+    reflector      *Reflector
+    reflectorMutex sync.RWMutex
+    clock          clock.Clock
+}
+type Config struct {
+    // 是一个DeltaFIFO
+    Queue
+    // Something that can list and watch your objects.
+    ListerWatcher
+    // 自定义的处理逻辑
+    Process ProcessFunc
+    // 该controller针对的类型
+    ObjectType runtime.Object
+    // resync时间
+    FullResyncPeriod time.Duration
+    ShouldResync ShouldResyncFunc
+    // 发生错误的时候是否需要重新进到队列中
+    RetryOnError bool
+}
+```
+
+controller的run主要目的是reflector一直在往DeltaFIFO中存数据，另外一边是一直从DeltaFIFO中出队并且给自定义逻辑c.config.Process处理
+
+![controller-workflow](img/controller-workflow.png)
+
+```go
+func (c *controller) Run(stopCh <-chan struct{}) {
+    defer utilruntime.HandleCrash()
+    go func() {
+        <-stopCh
+        c.config.Queue.Close()
+    }()
+    // 构造一个reflector
+    r := NewReflector(
+        c.config.ListerWatcher,
+        c.config.ObjectType,
+        c.config.Queue,
+        c.config.FullResyncPeriod,
+    )
+    r.ShouldResync = c.config.ShouldResync
+    r.clock = c.clock
+
+    c.reflectorMutex.Lock()
+    c.reflector = r
+    c.reflectorMutex.Unlock()
+
+    var wg wait.Group
+    defer wg.Wait()
+
+    // goroutine启动reflector.Run方法 
+    // 所有从listwatcher中的数据会存到DeltaFIFO 也就是r.store=c.config.Queue
+    wg.StartWithChannel(stopCh, r.Run)
+    // 循环执行processLoop
+    wait.Until(c.processLoop, time.Second, stopCh)
+}
+func (c *controller) processLoop() {
+    for {
+        // 从DeltaFIFO出队列的逻辑已经分析过了
+        // 从DeltaFIFO出队列执行用户逻辑c.config.Process方法
+        obj, err := c.config.Queue.Pop(PopProcessFunc(c.config.Process))
+        if err != nil {
+            if err == ErrFIFOClosed {
+                // 如果deltaFIFO已经关闭 则返回
+                return
+            }
+            if c.config.RetryOnError {
+                // This is the safe way to re-enqueue.
+                // 如果设置了重试 则重新加入到deltaFIFO中
+                c.config.Queue.AddIfNotPresent(obj)
+            }
+        }
+    }
+}
+```
+
+
+
+### processor & listener
+
 通过infromer注册event事件处理
 
 ![controller-model](img/controller-model.png)
@@ -484,7 +566,7 @@ processorListener中比较重要的三个方法：add、pop、run
 
 - pop 和 run 属于消费者，消费从add方法中过来的notification，但是为了防止处理速度(调用handler)跟不上生产速度，设置了一个缓冲区`pendingNotifications`，把从add中过来的notification先加入到pendingNotifications，然后从pendingNotifications读取一个notification后，将notification通过nextCh来进而传递给消费者run
 
-![controller-workflow](img/controller-workflow.png)
+![controller-workflow](img/processor-workflow.png)
 
 ```go
 type sharedProcessor struct {
