@@ -130,7 +130,7 @@ Reflector主要看Run、ListAndWatch、watchHandler
 func (r *Reflector) Run(stopCh <-chan struct{}) {
     klog.V(3).Infof("Starting reflector %v (%s) from %s", r.expectedTypeName, r.resyncPeriod, r.name)
     wait.Until(func() {
-         // 启动后执行一次ListAndWatch
+        // 启动后执行一次ListAndWatch
         if err := r.ListAndWatch(stopCh); err != nil {
             utilruntime.HandleError(err)
         }
@@ -148,14 +148,14 @@ ListAndWatch主要分为list、定时同步和watch三个部分：
 // and then use the resource version to watch.
 // It returns error if ListAndWatch didn't even try to initialize watch.
 func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
-  	// Attempt to gather list in chunks, if supported by listerWatcher, if not, the first
-  	// list request will return the full response.
+    // Attempt to gather list in chunks, if supported by listerWatcher, if not, the first
+    // list request will return the full response.
     // 设置分页参数
-  	pager := pager.New(pager.SimplePageFunc(func(opts metav1.ListOptions) (runtime.Object, error) {
-    		// 这里是调用了各个资源中的ListFunc函数,例如如果v1版本的Deployment
-    		// 则调用的是informers/apps/v1/deployment.go中的ListFunc
-    		return r.listerWatcher.List(opts)
-  	}))
+    pager := pager.New(pager.SimplePageFunc(func(opts metav1.ListOptions) (runtime.Object, error) {
+        // 这里是调用了各个资源中的ListFunc函数,例如如果v1版本的Deployment
+        // 则调用的是informers/apps/v1/deployment.go中的ListFunc
+        return r.listerWatcher.List(opts)
+    }))
     ...
     // 从API SERVER请求一次数据 获取资源的全部Object
     // 执行list方法
@@ -183,7 +183,7 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
     w, err := r.listerWatcher.Watch(options)
     // 处理Watch中的数据并且将数据放置到DeltaFIFO当中
     if err := r.watchHandler(start, w, &resourceVersion, resyncerrc, stopCh); err != nil {
-      	...
+        ...
     }
 ...
 }
@@ -193,18 +193,18 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 // watchHandler watches w and keeps *resourceVersion up to date.
 func (r *Reflector) watchHandler(start time.Time, w watch.Interface, resourceVersion *string, errc chan error, stopCh <-chan struct{}) error {
 ...
-  		switch event.Type {
-      // store就是DeltaFIFO
-			case watch.Added:
-				  err := r.store.Add(event.Object) // 调用DeltaFIFO的queueActionLocked方法
-				  ...
-			case watch.Modified:
-				  err := r.store.Update(event.Object)
-				  ...
-			case watch.Deleted:
-				  err := r.store.Delete(event.Object)
-				  ...
-      }
+    switch event.Type {
+    // store就是DeltaFIFO
+    case watch.Added:
+        err := r.store.Add(event.Object) // 调用DeltaFIFO的queueActionLocked方法
+        ...
+    case watch.Modified:
+        err := r.store.Update(event.Object)
+        ...
+    case watch.Deleted:
+        err := r.store.Delete(event.Object)
+        ...
+    }
 ...
 }
 ```
@@ -234,18 +234,18 @@ func (s *sharedIndexInformer) HandleDeltas(obj interface{}) error {
     for _, d := range obj.(Deltas) {
       	switch d.Type {
         case Sync, Replaced, Added, Updated:
-          	...
-          	// 查一下是否在Indexer缓存中 如果在缓存中就更新缓存中的对象
-          	if old, exists, err := s.indexer.Get(d.Object); err == nil && exists {
-              	if err := s.indexer.Update(d.Object); err != nil {
-                  	return err
+            ...
+            // 查一下是否在Indexer缓存中 如果在缓存中就更新缓存中的对象
+            if old, exists, err := s.indexer.Get(d.Object); err == nil && exists {
+                if err := s.indexer.Update(d.Object); err != nil {
+                    return err
                 }
                 ...
-              	// 把数据分发到Listener
-              	s.processor.distribute(updateNotification{oldObj: old, newObj: d.Object}, isSync)
+                // 把数据分发到Listener
+                s.processor.distribute(updateNotification{oldObj: old, newObj: d.Object}, isSync)
             } else {
                 // 没有在Indexer缓存中 把对象插入到缓存中
-              	if err := s.indexer.Add(d.Object); err != nil {
+                if err := s.indexer.Add(d.Object); err != nil {
                 return err
             }
             s.processor.distribute(addNotification{newObj: d.Object}, false)
@@ -315,7 +315,7 @@ DeltaFIFO中有两个重要的方法，queueActionLocked、Pop，分别作为生
 type DeltaFIFO struct {
 ...
     items map[string]Deltas // items存储的是以ObjectID为key的这个Object的事件列表
-    queue []string 					// queue存储的是Object的id
+    queue []string // queue存储的是Object的id
 ...
 }
 
@@ -374,7 +374,7 @@ func (f *DeltaFIFO) Pop(process PopProcessFunc) (interface{}, error) {
         f.queue = f.queue[1:]
         ...
         item, ok := f.items[id]
-				...
+        ...
         delete(f.items, id)
         // 这个process可以在controller.go中的processLoop()找到
         // 初始化是在shared_informer.go的Run
@@ -385,7 +385,7 @@ func (f *DeltaFIFO) Pop(process PopProcessFunc) (interface{}, error) {
             f.addIfNotPresent(id, item)
             err = e.Err
         }
-         ...
+        ...
     }
 }
 ```
@@ -411,29 +411,29 @@ go func() {
         cleanup() // Call the last one written into cleanup
     }()
     for {
-    	  select {
-    		case <-resyncCh:
-    		case <-stopCh:
-      			return
-      	case <-cancelCh:
-      			return
-    		}
-    		// 定时执行   调用会执行到delta_fifo.go的Resync()方法
-    		if r.ShouldResync == nil || r.ShouldResync() {
-      			klog.V(4).Infof("%s: forcing resync", r.name)
-      			if err := r.store.Resync(); err != nil {
-        		resyncerrc <- err
-        		return
-      	}
-    }
-    cleanup()
-    resyncCh, cleanup = r.resyncChan()
+        select {
+        case <-resyncCh:
+        case <-stopCh:
+            return
+        case <-cancelCh:
+            return
+        }
+        // 定时执行   调用会执行到delta_fifo.go的Resync()方法
+        if r.ShouldResync == nil || r.ShouldResync() {
+            klog.V(4).Infof("%s: forcing resync", r.name)
+            if err := r.store.Resync(); err != nil {
+                resyncerrc <- err
+                return
+            }
+        }
+        cleanup()
+        resyncCh, cleanup = r.resyncChan()
   	}
 }()
 
 func (f *DeltaFIFO) Resync() error {
     ...
-		// 从缓存中获取到所有的key
+    // 从缓存中获取到所有的key
     keys := f.knownObjects.ListKeys()
     for _, k := range keys {
         if err := f.syncKeyLocked(k); err != nil {
@@ -466,6 +466,7 @@ type controller struct {
     reflectorMutex sync.RWMutex
     clock          clock.Clock
 }
+
 type Config struct {
     // 是一个DeltaFIFO
     Queue
