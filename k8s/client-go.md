@@ -369,7 +369,7 @@ func (f *DeltaFIFO) Pop(process PopProcessFunc) (interface{}, error) {
             // 阻塞 直到调用了f.cond.Broadcast()
             f.cond.Wait()
         }
-				// 取出第一个元素
+        // 取出第一个元素
         id := f.queue[0]
         f.queue = f.queue[1:]
         ...
@@ -428,7 +428,7 @@ go func() {
         }
         cleanup()
         resyncCh, cleanup = r.resyncChan()
-  	}
+    }
 }()
 
 func (f *DeltaFIFO) Resync() error {
