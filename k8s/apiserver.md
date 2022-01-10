@@ -16,6 +16,23 @@ kube-apiserver包含三种APIServer：
 - **kubeAPIServer**：负责对请求的一些通用处理，包括：认证、鉴权以及各个内建资源(pod, deployment，service and etc)的REST服务等
 - **apiExtensionsServer**：负责CustomResourceDefinition（CRD）apiResources以及apiVersions的注册，同时处理CRD以及相应CustomResource（CR）的REST请求(如果对应CR不能被处理的话则会返回404)，也是apiserver Delegation的最后一环
 
+apiserver的服务暴露是通过bootstrap-controller来完成的
+
+
+
+## bootstrap-controller
+
+运行在k8s.io/kubernetes/pkg/master目录
+
+default/kubernetes service的spec.selector是空
+
+几个主要功能：
+
+- 创建 default、kube-system 和 kube-public 以及 kube-node-lease 命名空间
+- 创建&维护kubernetes default apiserver service以及对应的endpoint
+- 提供基于Service ClusterIP的检查及修复功能(`--service-cluster-ip-range`指定范围)
+- 提供基于Service NodePort的检查及修复功能(`--service-node-port-range`指定范围)
+
 
 
 ## kubeAPIServer
