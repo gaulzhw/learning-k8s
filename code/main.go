@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/gaulzhw/learning-k8s/clientgo"
+	"github.com/gaulzhw/learning-k8s/aggregateapiserver"
 )
 
 func main() {
@@ -10,5 +10,8 @@ func main() {
 
 	// controller-manager
 	//clientgo.StartController()
-	clientgo.StartInformer()
+	//clientgo.StartInformer()
+
+	// AA
+	aggregateapiserver.Start()
 }
