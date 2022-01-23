@@ -21,12 +21,12 @@ TOOLS_BIN_DIR := $(TOOLS_DIR)/bin
 TEMPLATES_DIR := templates
 
 BIN_DIR := bin
-ENVSUBST := $(TOOLS_BIN_DIR)/envsubst
 GOLANGCI_LINT := $(TOOLS_BIN_DIR)/golangci-lint
 CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
 CONVERSION_GEN := $(TOOLS_BIN_DIR)/conversion-gen
 GO_BINDATA := $(TOOLS_BIN_DIR)/go-bindata
 GINKGO := $(TOOLS_BIN_DIR)/ginkgo
+APISERVER_BOOT := $(TOOLS_BIN_DIR)/apiserver-boot
 EXP_DIR := exp
 
 # Allow overriding manifest generation destination directory
@@ -65,7 +65,12 @@ $(GO_BINDATA): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/go-bindata github.com/go-bindata/go-bindata/go-bindata
 
 $(GINKGO): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR) && go build -tags=tools -o $(BIN_DIR)/ginkgo github.com/onsi/ginkgo/ginkgo
+	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/ginkgo github.com/onsi/ginkgo/ginkgo
+
+$(APISERVER_BOOT): $(TOOLS_DIR)/go.mod # Build apiserver-boot from tools folder.
+	cd $(TOOLS_DIR); go build -tags=tools -o $(APISERVER_BOOT)/apiserver-boot sigs.k8s.io/apiserver-builder-alpha/cmd/apiserver-boot
+
+apiserver: $(APISERVER_BOOT)
 
 ## --------------------------------------
 ## Linting
