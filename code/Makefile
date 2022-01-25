@@ -26,25 +26,6 @@ CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
 CONVERSION_GEN := $(TOOLS_BIN_DIR)/conversion-gen
 GO_BINDATA := $(TOOLS_BIN_DIR)/go-bindata
 GINKGO := $(TOOLS_BIN_DIR)/ginkgo
-APISERVER_BOOT := $(TOOLS_BIN_DIR)/apiserver-boot
-EXP_DIR := exp
-
-# Allow overriding manifest generation destination directory
-MANIFEST_ROOT ?= deploy
-CONTROLLER_DEPLOYMENT_FILE ?= $(MANIFEST_ROOT)/base/deployment.yaml
-CONTROLLER_RBAC_ROOT ?= $(MANIFEST_ROOT)/base
-
-# Define Docker related variables.
-HARBOR = harbor.test.shopeemobile.com
-ifeq ($(ENV),live)
-HARBOR := harbor.shopeemobile.com
-endif
-
-# core
-CONTROLLER_IMAGE_NAME ?= devops-sz/haproxy-controller
-CONTROLLER_IMG ?= $(HARBOR)/$(CONTROLLER_IMAGE_NAME)
-HAPROXY_IMAGE_NAME ?= devops-sz/kube-haproxy
-HAPROXY_IMG ?= $(HARBOR)/$(HAPROXY_IMAGE_NAME)
 
 TAG ?= $(shell git rev-parse --abbrev-ref HEAD | grep -v HEAD || git describe --tags || git  rev-parse HEAD)
 
@@ -67,16 +48,9 @@ $(GO_BINDATA): $(TOOLS_DIR)/go.mod
 $(GINKGO): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/ginkgo github.com/onsi/ginkgo/ginkgo
 
-$(APISERVER_BOOT): $(TOOLS_DIR)/go.mod # Build apiserver-boot from tools folder.
-	cd $(TOOLS_DIR); go build -tags=tools -o $(APISERVER_BOOT)/apiserver-boot sigs.k8s.io/apiserver-builder-alpha/cmd/apiserver-boot
-
-apiserver: $(APISERVER_BOOT)
-
 ## --------------------------------------
 ## Linting
 ## --------------------------------------
-
-test: $(CONTROLLER_GEN)
 
 .PHONY: lint
 lint: $(GOLANGCI_LINT) ## Lint codebase
@@ -105,28 +79,15 @@ modules: ## Runs go mod to ensure modules are up to date
 
 .PHONY: docker-build
 docker-build: ## Build the docker image
-	docker build -f build/controller/Dockerfile -t $(CONTROLLER_IMG):$(TAG) .
+	docker build -t $(CONTROLLER_IMG):$(TAG) .
 
 .PHONY: docker-push
 docker-push: ## Push the docker image
 	docker push $(CONTROLLER_IMG):$(TAG)
 
 ## --------------------------------------
-## GENERATE/MANIFEST
-## --------------------------------------
-
-.PHONY: update-deployment
-update-deployment: ## update controller image version in deployment
-	sed -i'' -e 's@image: ${CONTROLLER_IMG}:.*@image: '"${CONTROLLER_IMG}:$(TAG)"'@' $(CONTROLLER_DEPLOYMENT_FILE)
-	rm $(CONTROLLER_DEPLOYMENT_FILE)-e
-
-.PHONY: generate-rbac
-generate-rbac: $(CONTROLLER_GEN) ## Generate controller manifests e.g. RBAC.
-	$(CONTROLLER_GEN) paths=./pkg/controllers/... output:rbac:dir=$(CONTROLLER_RBAC_ROOT) rbac:roleName=haproxy-controller
-
-## --------------------------------------
 ## RELEASE
 ## --------------------------------------
 
 .PHONY: release
-release: docker-build docker-push generate-rbac update-deployment ## release for controller
+release: docker-build docker-push ## Release
