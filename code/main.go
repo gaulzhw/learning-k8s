@@ -5,6 +5,8 @@ import (
 )
 
 func main() {
+	//restful.Start()
+
 	// informer
 	//clientgo.Start()
 

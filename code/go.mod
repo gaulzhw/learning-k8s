@@ -3,6 +3,7 @@ module github.com/gaulzhw/learning-k8s
 go 1.17
 
 require (
+	github.com/emicklei/go-restful/v3 v3.7.3
 	github.com/spf13/cobra v1.2.1
 	go.etcd.io/etcd/client/v3 v3.5.1
 	k8s.io/api v0.23.0
