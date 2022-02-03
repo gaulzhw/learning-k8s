@@ -1,8 +1,13 @@
 package main
 
+import (
+	"github.com/gaulzhw/learning-k8s/restful"
+)
+
 func main() {
 	// go-restful
-	//restful.Start()
+	//restful.StartContainer()
+	restful.StartServer()
 
 	// client
 	//client.InitRestClient()
