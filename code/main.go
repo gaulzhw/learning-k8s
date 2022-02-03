@@ -1,19 +1,20 @@
 package main
 
-import (
-	"github.com/gaulzhw/learning-k8s/aggregateapiserver"
-)
-
 func main() {
 	//restful.Start()
 
+	// client
+	//client.InitRestClient()
+	//client.InitDynamicClient()
+	//client.InitClientSet()
+	//client.InitDiscoveryClient()
+
 	// informer
-	//clientgo.Start()
+	//clientgo.StartInformer()
 
 	// controller-manager
 	//clientgo.StartController()
-	//clientgo.StartInformer()
 
 	// AA
-	aggregateapiserver.Start()
+	//aggregateapiserver.Start()
 }
