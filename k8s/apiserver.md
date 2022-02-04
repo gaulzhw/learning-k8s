@@ -64,6 +64,167 @@ type Handler interface {
 
 
 
+### handler 的构建
+
+这里说的Handler指的是最终`net/http Server`要运行的Handler，它在GenericAPIServer中被构建出来，首先我们来看下GenericAPIServer的结构：
+
+```go
+# apiserver/pkg/server/genericapiserver.go
+
+type GenericAPIServer struct {
+    // SecureServingInfo holds configuration of the TLS server.
+    SecureServingInfo *SecureServingInfo
+    // "Outputs"
+    // Handler holds the handlers being used by this API server
+    Handler *APIServerHandler
+    // delegationTarget is the next delegate in the chain. This is never nil.
+    delegationTarget DelegationTarget
+    ......
+}
+```
+
+一个GenericAPIServer包含的信息非常的多，上面结构体并没有列出全部属性，在这里我们只关注几个重点信息就行：
+
+- `SecureServingInfo *SecureServingInfo`: 这里面包含的是运行APIServer需要的TLS相关的信息
+- `Handler *APIServerHandler`: 这个就是要运行APIServer需要使用到的Handler，各个API对象向APIServer中注册，说的就是向Handler注册，它是最重要的信息
+- `delegationTarget DelegationTarget`: 这个是扩展机制中用到的，指定该GenericAPIServer的delegation是谁
+
+再来看下`Handler *APIServerHandler`的结构体信息：
+
+```go
+# apiserver/pkg/server/handler.go
+
+type APIServerHandler struct {
+	// FullHandlerChain is the one that is eventually served with.  It should include the full filter
+	// chain and then call the Director.
+	FullHandlerChain http.Handler
+	// The registered APIs.  InstallAPIs uses this.  Other servers probably shouldn't access this directly.
+	GoRestfulContainer *restful.Container
+	// NonGoRestfulMux is the final HTTP handler in the chain.
+	// It comes after all filters and the API handling
+	// This is where other servers can attach handler to various parts of the chain.
+	NonGoRestfulMux *mux.PathRecorderMux
+
+	// Director is here so that we can properly handle fall through and proxy cases.
+	// This looks a bit bonkers, but here's what's happening.  We need to have /apis handling registered in gorestful in order to have
+	// swagger generated for compatibility.  Doing that with `/apis` as a webservice, means that it forcibly 404s (no defaulting allowed)
+	// all requests which are not /apis or /apis/.  We need those calls to fall through behind goresful for proper delegation.  Trying to
+	// register for a pattern which includes everything behind it doesn't work because gorestful negotiates for verbs and content encoding
+	// and all those things go crazy when gorestful really just needs to pass through.  In addition, openapi enforces unique verb constraints
+	// which we don't fit into and it still muddies up swagger.  Trying to switch the webservices into a route doesn't work because the
+	//  containing webservice faces all the same problems listed above.
+	// This leads to the crazy thing done here.  Our mux does what we need, so we'll place it in front of gorestful.  It will introspect to
+	// decide if the route is likely to be handled by goresful and route there if needed.  Otherwise, it goes to PostGoRestful mux in
+	// order to handle "normal" paths and delegation. Hopefully no API consumers will ever have to deal with this level of detail.  I think
+	// we should consider completely removing gorestful.
+	// Other servers should only use this opaquely to delegate to an API server.
+	Director http.Handler
+}
+
+func NewAPIServerHandler(name string, s runtime.NegotiatedSerializer, handlerChainBuilder HandlerChainBuilderFn, notFoundHandler http.Handler) *APIServerHandler {
+	nonGoRestfulMux := mux.NewPathRecorderMux(name)
+	if notFoundHandler != nil {
+		nonGoRestfulMux.NotFoundHandler(notFoundHandler)
+	}
+
+	gorestfulContainer := restful.NewContainer()
+	gorestfulContainer.ServeMux = http.NewServeMux()
+	gorestfulContainer.Router(restful.CurlyRouter{}) // e.g. for proxy/{kind}/{name}/{*}
+	gorestfulContainer.RecoverHandler(func(panicReason interface{}, httpWriter http.ResponseWriter) {
+		logStackOnRecover(s, panicReason, httpWriter)
+	})
+	gorestfulContainer.ServiceErrorHandler(func(serviceErr restful.ServiceError, request *restful.Request, response *restful.Response) {
+		serviceErrorHandler(s, serviceErr, request, response)
+	})
+
+	director := director{
+		name:               name,
+		goRestfulContainer: gorestfulContainer,
+		nonGoRestfulMux:    nonGoRestfulMux,
+	}
+
+	return &APIServerHandler{
+		FullHandlerChain:   handlerChainBuilder(director),
+		GoRestfulContainer: gorestfulContainer,
+		NonGoRestfulMux:    nonGoRestfulMux,
+		Director:           director,
+	}
+}
+```
+
+APIServerHandler中包含一个go-restful构建出来的Container，`GoRestfulContainer`，以及一个PathRecorderMux构建出来的`NonGoRestfulMux`，注意，他们都是指针类型的，此外还有一个`FullHandlerChain`以及`Director`，都是对一个director结构体的引用，来看看这个结构体：
+
+```go
+# apiserver/pkg/server/handler.go
+
+type director struct {
+	name               string
+	goRestfulContainer *restful.Container
+	nonGoRestfulMux    *mux.PathRecorderMux
+}
+
+func (d director) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+    ......
+}
+```
+
+它里面又包含了`goRestfulContainer`和`nonGoRestfulMux`，但是注意他们也是以指针的形式作为成员变量的，并且该director还实现了ServeHTTP()方法，即director还是一个Handler。上面的APIServerHandler中也包含了`GoRestfulContainer`, `NonGoRestfulMux`的指针类型的成员变量，他们指针指向的其实是同一个实体，即在NewAPIServerHandler()方法中New出来的实体。
+
+为什么在APIServerHandler中已经有这两个变量了，还要再单独生成一个director结构体来引用这两个变量，其实这跟他们的用法有关。
+
+现在先来说下`FullHandlerChain`和`Director`的区别，他们两个都是对director的引用，区别是FullHandlerChain在director外面还包围了一层Chain，我们来看看这个Chain是什么：
+
+```go
+# apiserver/pkg/server/config.go
+
+handlerChainBuilder := func(handler http.Handler) http.Handler {
+    return c.BuildHandlerChainFunc(handler, c.Config)
+}
+
+apiServerHandler := NewAPIServerHandler(name, c.Serializer, handlerChainBuilder, delegationTarget.UnprotectedHandler()
+
+func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
+    handler := genericapifilters.WithAuthorization(apiHandler, c.Authorization.Authorizer, c.Serializer)
+    if c.FlowControl != nil {
+    	handler = genericfilters.WithPriorityAndFairness(handler, c.LongRunningFunc, c.FlowControl)
+    } else {
+    	handler = genericfilters.WithMaxInFlightLimit(handler, c.MaxRequestsInFlight, c.MaxMutatingRequestsInFlight, c.LongRunningFunc)
+    }
+    handler = genericapifilters.WithImpersonation(handler, c.Authorization.Authorizer, c.Serializer)
+    handler = genericapifilters.WithAudit(handler, c.AuditBackend, c.AuditPolicyChecker, c.LongRunningFunc)
+    failedHandler := genericapifilters.Unauthorized(c.Serializer)
+    failedHandler = genericapifilters.WithFailedAuthenticationAudit(failedHandler, c.AuditBackend, c.AuditPolicyChecker)
+    handler = genericapifilters.WithAuthentication(handler, c.Authentication.Authenticator, failedHandler, c.Authentication.APIAudiences)
+    handler = genericfilters.WithCORS(handler, c.CorsAllowedOriginList, nil, nil, nil, "true")
+    handler = genericfilters.WithTimeoutForNonLongRunningRequests(handler, c.LongRunningFunc, c.RequestTimeout)
+    handler = genericfilters.WithWaitGroup(handler, c.LongRunningFunc, c.HandlerChainWaitGroup)
+    handler = genericapifilters.WithRequestInfo(handler, c.RequestInfoResolver)
+    if c.SecureServing != nil && !c.SecureServing.DisableHTTP2 && c.GoawayChance > 0 {
+    	handler = genericfilters.WithProbabilisticGoaway(handler, c.GoawayChance)
+    }
+    handler = genericapifilters.WithAuditAnnotations(handler, c.AuditBackend, c.AuditPolicyChecker)
+    handler = genericapifilters.WithCacheControl(handler)
+    handler = genericfilters.WithPanicRecovery(handler)
+    return handler
+}
+```
+
+上面的`BuildHandlerChainFunc`默认为`DefaultBuildHandlerChain()`，看到该方法中传入一个Handler，然后在该Handler外面像包洋葱一样，包了一层又一层的filter，这些filter的作用其实就是在请求到来时，在Handler真正处理之前，先要经过的一系列认证，授权，审计等等检查，如果通过了，才会由最终的Handler来处理该请求，没通过，则会报相应的错误，可见，认证授权等操作，就是在这个阶段生效的，经过一系列filter的包装，最终构建出来的Handler，就是`FullHandlerChain`，而director就是这个被层层包装的Handler。而Director这个成员变量，没有被filter包装，这样通过Director就可以绕过认证授权这些filter，直接由Handler进行处理。
+
+那么问题来了，难道还有请求不需要认证授权的？这个Director存在的意义是什么？的确是有请求不需要认证授权，这就涉及到APIServer的扩展机制了，后面会介绍到。
+
+小结一下，APIServerHandler中包含4个成员变量，FullHandlerChain和Director其实是两个Handler，一个是带认证授权这些filter的，一个是不带的，都是对director的引用，而GoRestfulContainer和NonGoRestfulMux则分别是指针类型的引用，指向真正的goRestfulContainer和nonGoRestfulMux实体，同时这两个实体，又被director所引用。
+
+从这里就大概可以看出GoRestfulContainer和NonGoRestfulMux这两个变量在这里的作用了，在上层向goRestfulContainer和nonGoRestfulMux实体中注册API对象时，就是通过调用这两个变量来对真正的实体进行操作的，如下面的示例：
+
+```go
+apiGroupVersion.InstallREST(s.Handler.GoRestfulContainer)
+```
+
+因为是指针，都指向同一个实体，这样director作为Handler也就能用到注册进来的API对象了。
+
+
+
 ## bootstrap-controller
 
 运行在k8s.io/kubernetes/pkg/master目录
