@@ -433,6 +433,68 @@ err = aggregatorServer.GenericAPIServer.AddPostStartHook("kube-apiserver-autoreg
 
 APIServer通过在Aggregator, APIExtensions以及KubeAPIServer这三者之间通过Delegation的方式实现扩展
 
+```go
+# kubernetes/pkg/master/master.go
+
+// KubeAPIServer
+type Master struct {
+	GenericAPIServer *genericapiserver.GenericAPIServer
+
+	ClusterAuthenticationInfo clusterauthenticationtrust.ClusterAuthenticationInfo
+}
+
+# kube-aggregator/pkg/apiserver/apiserver.go
+
+// Aggregator
+type APIAggregator struct {
+	GenericAPIServer *genericapiserver.GenericAPIServer
+
+	delegateHandler http.Handler
+
+	// proxyClientCert/Key are the client cert used to identify this proxy. Backing APIServices use
+	// this to confirm the proxy's identity
+	proxyClientCert []byte
+	proxyClientKey  []byte
+	proxyTransport  *http.Transport
+
+	// proxyHandlers are the proxy handlers that are currently registered, keyed by apiservice.name
+	proxyHandlers map[string]*proxyHandler
+	// handledGroups are the groups that already have routes
+	handledGroups sets.String
+
+	......
+}
+
+# apiextensions-apiserver/pkg/apiserver/apiserver.go
+
+// APIExtensions
+type CustomResourceDefinitions struct {
+	GenericAPIServer *genericapiserver.GenericAPIServer
+
+	// provided for easier embedding
+	Informers externalinformers.SharedInformerFactory
+}
+```
+
+他们各自的API对象都是安装注册到各自的GenericAPIServer中的，除了Master中Kubernetes API内置的像`pods, services`这些API对象外，APIAggregator和CustomResourceDefinitions也都内置了各自的API对象，不过这些API对象也都是为了本身的扩展而设计的，APIAggregator中内置的API对象叫做`apiservices`，所属的组为`apiregistration.k8s.io`，每一个外部的APIServer都抽象为这个`apiservices`，注册到APIAggregator中，而apiextensions中内置的API对象就叫做`customresourcedefinations`，所属的组为`apiextensions.k8s.io`，这就是我们常说的CRD了，每一个自定义的资源，都抽象为一个CRD。
+
+> 这里面的名词，KubeAPIServer和Master对应，Aggretator和APIAggregator对应，APIExtensions和CustomResourceDefinitions对应，前者是在代码中他们各自的GenericAPIServer的name，而后者是对应的结构体的名字。
+
+```
+aggregator
+* resources
+    * /apis  -> GoRestfulContainer
+        * apiregistration.k8s.io
+            * apiservices
+            * apiservices/status
+    * /apis  -> apisHandler  -> NonGoRestfulMux
+    * /apis/  -> apisHandler  -> NonGoRestfulMux
+    * "/apis/" + apiService.Spec.Group + "/" + apiService.Spec.Version -> proxyHandler -> NonGoRestfulMux
+        * 在该proxyHandler中，最终将请求proxy给extension-apiserver
+        * 在apiservice-registration-controller poststarthook中通过AddAPIService在添加APIService时，注册进proxyHandler中
+    * "/apis/" + apiService.Spec.Group -> groupDiscoveryHandler -> NonGoRestfulMux
+```
+
 
 
 ### kubeAPIServer
