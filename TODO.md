@@ -4,7 +4,6 @@
 
 - 边缘计算, superedge kubeedge, 调研边缘计算的边端集群方式是否合适k8s-on-k8s业务集群master的部署形式，以减小网络不稳定带来的影响
 - lite-apiserver, https://cloud.tencent.com/developer/article/1809637?from=article.detail.1774436
-- api-server扩展, https://hackerain.me/2020/10/08/kubernetes/kube-apiserver-extensions.html
 - 稳定性保障手册
 
 1. https://mp.weixin.qq.com/s?spm=a2c6h.12873639.0.0.7b896c51DkuoKC&__biz=MzUzNzYxNjAzMg==&mid=2247501775&idx=1&sn=8b3b27934e7bced10b2a7f81483e3256&chksm=fae6cc00cd9145168b57c579ed488a7f92b67f86daf039de6b9518995d9e1ad27df2a382290e&scene=21#wechat_redirect
