@@ -429,20 +429,9 @@ err = aggregatorServer.GenericAPIServer.AddPostStartHook("kube-apiserver-autoreg
 
 
 
-## 核心组件及逻辑
+## apiserver 机制
 
-### bootstrap-controller
-
-运行在k8s.io/kubernetes/pkg/master目录
-
-default/kubernetes service的spec.selector是空
-
-几个主要功能：
-
-- 创建 default、kube-system 和 kube-public 以及 kube-node-lease 命名空间
-- 创建&维护kubernetes default apiserver service以及对应的endpoint
-- 提供基于Service ClusterIP的检查及修复功能(`--service-cluster-ip-range`指定范围)
-- 提供基于Service NodePort的检查及修复功能(`--service-node-port-range`指定范围)
+APIServer通过在Aggregator, APIExtensions以及KubeAPIServer这三者之间通过Delegation的方式实现扩展
 
 
 
@@ -516,6 +505,21 @@ aggregatorServer主要用于处理扩展Kubernetes API Resources的第二种方�
 ### apiExtensionsServer
 
 apiExtensionsServer主要负责CustomResourceDefinition（CRD）apiResources以及apiVersions的注册，同时处理CRD以及相应CustomResource（CR）的REST请求(如果对应CR不能被处理的话则会返回404)，也是apiserver Delegation的最后一环
+
+
+
+### bootstrap-controller
+
+运行在k8s.io/kubernetes/pkg/master目录
+
+default/kubernetes service的spec.selector是空
+
+几个主要功能：
+
+- 创建 default、kube-system 和 kube-public 以及 kube-node-lease 命名空间
+- 创建&维护kubernetes default apiserver service以及对应的endpoint
+- 提供基于Service ClusterIP的检查及修复功能(`--service-cluster-ip-range`指定范围)
+- 提供基于Service NodePort的检查及修复功能(`--service-node-port-range`指定范围)
 
 
 
