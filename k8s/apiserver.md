@@ -20,7 +20,7 @@ apiserver的服务暴露是通过bootstrap-controller来完成的
 
 
 
-## apiserver 大致流程
+## apiserver 流程
 
 本质上，APIServer是使用golang中[net/http](https://golang.org/pkg/net/http/)库中的Server构建起来的。Handler是一个非常重要的概念，它是最终处理HTTP请求的实体，在golang中，定义了Handler的接口：
 
@@ -225,7 +225,213 @@ apiGroupVersion.InstallREST(s.Handler.GoRestfulContainer)
 
 
 
-## bootstrap-controller
+### API 对象的注册
+
+所谓API对象的注册，其实就是向GenericAPIServer的Handler中添加各个API对象的WebService和Route，GenericAPIServer提供了`InstallLegacyAPIGroup(), InstallAPIGroups(), InstallAPIGroup()`这三个方法，供外部调用，向其中注册APIGroupInfo，APIGroupInfo在上面基础知识中介绍过，里面存储了这个APIGroup的version, resource以及对应的REST storage实体，上面的三个方法，最后都会调用到同一个内部函数：
+
+```go
+# apiserver/pkg/server/genericapiserver.go
+
+func (s *GenericAPIServer) installAPIResources(apiPrefix string, apiGroupInfo *APIGroupInfo, openAPIModels openapiproto.Models) error {
+    for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
+        if len(apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version]) == 0 {
+            klog.Warningf("Skipping API %v because it has no resources.", groupVersion)
+            continue
+        }
+
+        apiGroupVersion := s.getAPIGroupVersion(apiGroupInfo, groupVersion, apiPrefix)
+        if apiGroupInfo.OptionsExternalVersion != nil {
+            apiGroupVersion.OptionsExternalVersion = apiGroupInfo.OptionsExternalVersion
+        }
+        apiGroupVersion.OpenAPIModels = openAPIModels
+        apiGroupVersion.MaxRequestBodyBytes = s.maxRequestBodyBytes
+
+        if err := apiGroupVersion.InstallREST(s.Handler.GoRestfulContainer); err != nil {
+            return fmt.Errorf("unable to setup API %v: %v", apiGroupInfo, err)
+        }
+    }
+
+    return nil
+}
+```
+
+这个函数的逻辑，就是遍历APIGroupInfo中的version，按照version的维度来进行安装API对象，即构建出来一个APIGroupVersion，将该版本的resource和REST storage存储到该结构体中，然后执行安装操作: `apiGroupVersion.InstallREST(s.Handler.GoRestfulContainer)`，可以看到这里传的就是`APIServerHandler`中的`GoRestfulContainer`。
+
+```go
+# apiserver/pkg/endpoints/groupversion.go
+
+func (g *APIGroupVersion) InstallREST(container *restful.Container) error {
+	prefix := path.Join(g.Root, g.GroupVersion.Group, g.GroupVersion.Version)
+	installer := &APIInstaller{
+		group:             g,
+		prefix:            prefix,
+		minRequestTimeout: g.MinRequestTimeout,
+	}
+
+	apiResources, ws, registrationErrors := installer.Install()
+	versionDiscoveryHandler := discovery.NewAPIVersionHandler(g.Serializer, g.GroupVersion, staticLister{apiResources})
+	versionDiscoveryHandler.AddToWebService(ws)
+	container.Add(ws)
+	return utilerrors.NewAggregate(registrationErrors)
+}
+```
+
+在该方法中，又构造了一个APIInstaller结构体，将APIGroupVersion的指针传给它，由它去执行安装操作：
+
+```go
+# apiserver/pkg/endpoints/installer.go
+
+func (a *APIInstaller) Install() ([]metav1.APIResource, *restful.WebService, []error) {
+	var apiResources []metav1.APIResource
+	var errors []error
+	ws := a.newWebService()
+
+	// Register the paths in a deterministic (sorted) order to get a deterministic swagger spec.
+	paths := make([]string, len(a.group.Storage))
+	var i int = 0
+	for path := range a.group.Storage {
+		paths[i] = path
+		i++
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		apiResource, err := a.registerResourceHandlers(path, a.group.Storage[path], ws)
+		if err != nil {
+			errors = append(errors, fmt.Errorf("error in registering resource: %s, %v", path, err))
+		}
+		if apiResource != nil {
+			apiResources = append(apiResources, *apiResource)
+		}
+	}
+	return apiResources, ws, errors
+}
+```
+
+在这里面New了一个WebService，然后遍历group中的REST storage，将storage中的path取出来，进行排序，然后再遍历这个path数组，针对每一个`path: storage`向WebService中执行注册操作，即`registerResourceHandlers()`，这就来到了最关键的地方，这是一个非常长的函数，这里面，对Storage进行类型转换，因为Storage实现了rest store的各种接口，所以首先将其转换成getter, creater, lister, updater等类型，分别对应该API对象在数据库层面的增删查改等操作，然后构造对应的Handler，然后再创建WebService的Route，最后将其添加到WebService中，我们以getter为例，简单看下这个过程：
+
+```go
+# apiserver/pkg/endpoints/installer.go
+
+func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storage, ws *restful.WebService) {
+    ......
+    getter, isGetter := storage.(rest.Getter)
+    handler = restfulGetResource(getter, exporter, reqScope)
+    route := ws.GET(action.Path).To(handler)
+    for _, route := range routes {
+        ws.Route(route)
+    }
+    ......
+}
+
+func restfulGetResource(r rest.Getter, e rest.Exporter, scope handlers.RequestScope) restful.RouteFunction {
+	return func(req *restful.Request, res *restful.Response) {
+		handlers.GetResource(r, e, &scope)(res.ResponseWriter, req.Request)
+	}
+}
+
+# apiserver/pkg/endpoints/handlers/get.go
+
+func GetResource(r rest.Getter, e rest.Exporter, scope *RequestScope) http.HandlerFunc {
+    return getResourceHandler(scope,
+        func(ctx context.Context, name string, req *http.Request, trace *utiltrace.Trace) (runtime.Object, error) {
+            return r.Get(ctx, name, &options)
+        }
+}
+
+func getResourceHandler(scope *RequestScope, getter getterFunc) http.HandlerFunc {
+    return func(w http.ResponseWriter, req *http.Request) {
+        namespace, name, err := scope.Namer.Name(req)
+        result, err := getter(ctx, name, req, trace)
+    }
+}
+```
+
+可以看到，在Handler方法中，去调用rest.Getter的Get方法，调用rest storage去数据库中获取对应的name的资源进行返回。
+
+
+
+### handler 的处理
+
+Handler构建出来，并且向其中注册了API对象，最后我们来看下，Handler是如何处理请求的，核心的逻辑，其实在上面已经介绍过，即在director的ServeHTTP()方法中：
+
+```go
+# apiserver/pkg/server/handler.go
+
+func (d director) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	path := req.URL.Path
+
+	// check to see if our webservices want to claim this path
+	for _, ws := range d.goRestfulContainer.RegisteredWebServices() {
+		switch {
+		case ws.RootPath() == "/apis":
+			// if we are exactly /apis or /apis/, then we need special handling in loop.
+			// normally these are passed to the nonGoRestfulMux, but if discovery is enabled, it will go directly.
+			// We can't rely on a prefix match since /apis matches everything (see the big comment on Director above)
+			if path == "/apis" || path == "/apis/" {
+				klog.V(5).Infof("%v: %v %q satisfied by gorestful with webservice %v", d.name, req.Method, path, ws.RootPath())
+				// don't use servemux here because gorestful servemuxes get messed up when removing webservices
+				// TODO fix gorestful, remove TPRs, or stop using gorestful
+				d.goRestfulContainer.Dispatch(w, req)
+				return
+			}
+
+		case strings.HasPrefix(path, ws.RootPath()):
+			// ensure an exact match or a path boundary match
+			if len(path) == len(ws.RootPath()) || path[len(ws.RootPath())] == '/' {
+				klog.V(5).Infof("%v: %v %q satisfied by gorestful with webservice %v", d.name, req.Method, path, ws.RootPath())
+				// don't use servemux here because gorestful servemuxes get messed up when removing webservices
+				// TODO fix gorestful, remove TPRs, or stop using gorestful
+				d.goRestfulContainer.Dispatch(w, req)
+				return
+			}
+		}
+	}
+
+	// if we didn't find a match, then we just skip gorestful altogether
+	klog.V(5).Infof("%v: %v %q satisfied by nonGoRestful", d.name, req.Method, path)
+	d.nonGoRestfulMux.ServeHTTP(w, req)
+}
+
+func (a *APIServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	a.FullHandlerChain.ServeHTTP(w, r)
+}
+```
+
+首先是APIServerHandler的ServeHTTP()方法，调用了FullHandlerChain的ServeHTTP()方法，经过了层层的filter，最终到了director的ServeHTTP()方法，在该方法中，首先遍历goRestfulContainer中注册的WebService，看path跟哪个WebService中的路径匹配，如果匹配，则调用`goRestfulContainer.Dispatch()`处理该请求，如果都没有匹配上，则最终调用nonGoRestfulMux来处理该请求。
+
+
+
+### PostStartHook
+
+在GenericAPIServer中还有一个重要的机制，就是这个PostStartHook，它是在APIServer启动之后，执行的一些Hook函数，这些Hook函数是在APIServer创建的过程中，注册进去的，在APIServer启动之后，做一些初始化或者周期性循环的任务。
+
+通过AddPostStartHook()方法向GenericAPIServer中添加Hook，然后在APIServer启动时，调用RunPostStartHooks()，遍历postStartHooks列表，使用goroutine运行每一个hook，来看一个添加PostStartHook的例子：
+
+```go
+# kubernetes/cmd/kube-apiserver/app/aggregator.go
+
+err = aggregatorServer.GenericAPIServer.AddPostStartHook("kube-apiserver-autoregistration", func(context genericapiserver.PostStartHookContext) error {
+		go crdRegistrationController.Run(5, context.StopCh)
+		go func() {
+			// let the CRD controller process the initial set of CRDs before starting the autoregistration controller.
+			// this prevents the autoregistration controller's initial sync from deleting APIServices for CRDs that still exist.
+			// we only need to do this if CRDs are enabled on this server.  We can't use discovery because we are the source for discovery.
+			if aggregatorConfig.GenericConfig.MergedResourceConfig.AnyVersionForGroupEnabled("apiextensions.k8s.io") {
+				crdRegistrationController.WaitForInitialSync()
+			}
+			autoRegistrationController.Run(5, context.StopCh)
+		}()
+		return nil
+	})
+```
+
+上面就是一个周期循环的Hook，用来将crd对象，不断轮询，转换成aggregator中的apiservices对象。
+
+
+
+## 核心组件及逻辑
+
+### bootstrap-controller
 
 运行在k8s.io/kubernetes/pkg/master目录
 
@@ -240,7 +446,7 @@ default/kubernetes service的spec.selector是空
 
 
 
-## kubeAPIServer
+### kubeAPIServer
 
 KubeAPIServer主要提供对内建API Resources的操作请求，为Kubernetes中各API Resources注册路由信息，同时暴露RESTful API，使集群中以及集群外的服务都可以通过RESTful API操作Kubernetes中的资源
 
@@ -287,7 +493,7 @@ genericregistry.Store.CompleteWithOptions初始化 k8s.io/kubernetes/staging/src
 
 
 
-## aggregatorServer
+### aggregatorServer
 
 aggregatorServer主要用于处理扩展Kubernetes API Resources的第二种方式Aggregated APIServer(AA)，将CR请求代理给AA
 
@@ -307,7 +513,7 @@ aggregatorServer主要用于处理扩展Kubernetes API Resources的第二种方�
 
 
 
-## apiExtensionsServer
+### apiExtensionsServer
 
 apiExtensionsServer主要负责CustomResourceDefinition（CRD）apiResources以及apiVersions的注册，同时处理CRD以及相应CustomResource（CR）的REST请求(如果对应CR不能被处理的话则会返回404)，也是apiserver Delegation的最后一环
 
