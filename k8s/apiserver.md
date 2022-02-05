@@ -433,6 +433,35 @@ err = aggregatorServer.GenericAPIServer.AddPostStartHook("kube-apiserver-autoreg
 
 APIServer通过在Aggregator, APIExtensions以及KubeAPIServer这三者之间通过Delegation的方式实现扩展
 
+```
+                    |--> CreateNodeDialer
+                    |
+                    |--> CreateKubeAPIServerConfig
+                    |
+CreateServerChain --|--> createAPIExtensionsConfig
+                    |
+                    |                                                                       |--> c.GenericConfig.New
+                    |--> createAPIExtensionsServer --> apiextensionsConfig.Complete().New --|
+                    |                                                                       |--> s.GenericAPIServer.InstallAPIGroup
+                    |
+                    |                                                                 |--> c.GenericConfig.New
+                    |                                                                 |
+                    |--> CreateKubeAPIServer --> kubeAPIServerConfig.Complete().New --|--> m.InstallLegacyAPI --> legacyRESTStorageProvider.NewLegacyRESTStorage --> m.GenericAPIServer.InstallLegacyAPIGroup
+                    |                                                                 |
+                    |                                                                 |--> m.InstallAPIs --> restStorageBuilder.NewRESTStorage --> m.GenericAPIServer.InstallAPIGroups
+                    |
+                    |
+                    |--> createAggregatorConfig
+                    |
+                    |                                                                             |--> c.GenericConfig.New
+                    |                                                                             |
+                    |--> createAggregatorServer --> aggregatorConfig.Complete().NewWithDelegate --|--> apiservicerest.NewRESTStorage
+                                                                                                  |
+                                                                                                  |--> s.GenericAPIServer.InstallAPIGroup
+```
+
+
+
 ```go
 # kubernetes/pkg/master/master.go
 
