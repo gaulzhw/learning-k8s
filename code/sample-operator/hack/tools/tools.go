@@ -5,9 +5,12 @@
 package tools
 
 import (
-	_ "github.com/go-bindata/go-bindata/v3"
-	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
-	_ "github.com/onsi/ginkgo/v2/ginkgo"
+	_ "github.com/drone/envsubst/v2/cmd/envsubst"
+	_ "github.com/joelanford/go-apidiff"
+	_ "github.com/onsi/ginkgo/ginkgo"
+	_ "gotest.tools/gotestsum"
 	_ "k8s.io/code-generator/cmd/conversion-gen"
+	_ "sigs.k8s.io/controller-runtime/tools/setup-envtest"
 	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
+	_ "sigs.k8s.io/promo-tools/v3/cmd/kpromo"
 )
