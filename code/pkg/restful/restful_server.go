@@ -5,7 +5,7 @@ import (
 
 	"github.com/emicklei/go-restful"
 
-	"github.com/gaulzhw/learning-k8s/restful/filter"
+	"github.com/gaulzhw/learning-k8s/pkg/restful/filter"
 )
 
 func StartServer() {

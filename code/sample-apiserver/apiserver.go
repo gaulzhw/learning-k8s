@@ -1,4 +1,4 @@
-package aggregateapiserver
+package main
 
 import (
 	"flag"
@@ -8,11 +8,11 @@ import (
 	"k8s.io/component-base/logs"
 	"k8s.io/klog/v2"
 
-	"github.com/gaulzhw/learning-k8s/aggregateapiserver/pkg/server"
+	"github.com/gaulzhw/learning-k8s/sample-apiserver/pkg/server"
 )
 
 // https://github.com/kubernetes-sigs/apiserver-runtime/blob/main/sample/cmd/apiserver/main.go
-func Start() {
+func main() {
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
