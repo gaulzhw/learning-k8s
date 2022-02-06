@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/gaulzhw/learning-k8s/pkg/clientgo"
-	"github.com/gaulzhw/learning-k8s/pkg/clientgo/client"
-	"github.com/gaulzhw/learning-k8s/pkg/restful"
+	"github.com/gaulzhw/learning-k8s/sample/clientgo"
+	"github.com/gaulzhw/learning-k8s/sample/clientgo/client"
+	"github.com/gaulzhw/learning-k8s/sample/restful"
 )
 
 func main() {

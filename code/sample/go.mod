@@ -1,4 +1,4 @@
-module github.com/gaulzhw/learning-k8s
+module github.com/gaulzhw/learning-k8s/sample
 
 go 1.17
 
