@@ -34,19 +34,9 @@ export DOCKER_CLI_EXPERIMENTAL := enabled
 #
 # Full directory of where the Makefile resides
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
-EXP_DIR := exp
 BIN_DIR := bin
-TEST_DIR := test
 TOOLS_DIR := hack/tools
 TOOLS_BIN_DIR := $(TOOLS_DIR)/$(BIN_DIR)
-E2E_FRAMEWORK_DIR := $(TEST_DIR)/framework
-CAPD_DIR := $(TEST_DIR)/infrastructure/docker
-GO_APIDIFF_BIN := $(BIN_DIR)/go-apidiff
-GO_APIDIFF := $(TOOLS_DIR)/$(GO_APIDIFF_BIN)
-KPROMO_BIN := $(BIN_DIR)/kpromo
-KPROMO :=  $(TOOLS_DIR)/$(KPROMO_BIN)
-ENVSUBST_BIN := $(BIN_DIR)/envsubst
-ENVSUBST := $(TOOLS_DIR)/$(ENVSUBST_BIN)
 
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 
@@ -303,10 +293,6 @@ verify-book-links: ## Verify book links
 
 ##@ build:
 
-.PHONY: clusterctl
-clusterctl: ## Build the clusterctl binary
-	go build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/clusterctl sigs.k8s.io/cluster-api/cmd/clusterctl
-
 ALL_MANAGERS = core kubeadm-bootstrap kubeadm-control-plane
 
 .PHONY: managers
@@ -354,10 +340,6 @@ docker-build-kubeadm-control-plane: ## Build the docker image for kubeadm contro
 	$(MAKE) set-manifest-image MANIFEST_IMG=$(KUBEADM_CONTROL_PLANE_CONTROLLER_IMG)-$(ARCH) MANIFEST_TAG=$(TAG) TARGET_RESOURCE="./controlplane/kubeadm/config/default/manager_image_patch.yaml"
 	$(MAKE) set-manifest-pull-policy TARGET_RESOURCE="./controlplane/kubeadm/config/default/manager_pull_policy.yaml"
 
-.PHONY: e2e-framework
-e2e-framework: ## Builds the CAPI e2e framework
-	cd $(E2E_FRAMEWORK_DIR); go build ./...
-
 ## --------------------------------------
 ## Testing
 ## --------------------------------------
@@ -391,19 +373,6 @@ test-cover: ## Run tests with code coverage and code generate reports
 .PHONY: test-verbose
 test-verbose: ## Run tests with verbose settings
 	$(MAKE) test TEST_ARGS="$(TEST_ARGS) -v"
-
-.PHONY: serve-book
-serve-book: ## Build and serve the book with live-reloading enabled
-	$(MAKE) -C docs/book serve
-
-.PHONY: kind-cluster
-kind-cluster: ## Create a new kind cluster designed for testing with Tilt
-	hack/kind-install-for-capd.sh
-
-.PHONY: docker-build-e2e
-docker-build-e2e: ## Rebuild all Cluster API provider images to be used in the e2e tests
-	make docker-build REGISTRY=gcr.io/k8s-staging-cluster-api PULL_POLICY=IfNotPresent
-	$(MAKE) -C $(CAPD_DIR) docker-build REGISTRY=gcr.io/k8s-staging-cluster-api PULL_POLICY=IfNotPresent
 
 ## --------------------------------------
 ## Release
@@ -535,16 +504,6 @@ release-notes: $(RELEASE_NOTES_DIR) $(RELEASE_NOTES)
 	go run ./hack/tools/release/notes.go --from=$(PREVIOUS_TAG) > $(RELEASE_NOTES_DIR)/$(RELEASE_TAG).md; \
 	fi
 
-.PHONY: docker-build-all
-docker-build-all: $(addprefix docker-build-,$(ALL_ARCH)) ## Build all the architecture docker images
-
-docker-build-%:
-	$(MAKE) ARCH=$* docker-build
-
-.PHONY: promote-images
-promote-images: $(KPROMO)
-	$(KPROMO) pr --project cluster-api --tag $(RELEASE_TAG) --reviewers "$(IMAGE_REVIEWERS)" --fork $(USER_FORK)
-
 ## --------------------------------------
 ## Docker
 ## --------------------------------------
@@ -554,42 +513,6 @@ docker-push: ## Push the docker images
 	docker push $(CONTROLLER_IMG)-$(ARCH):$(TAG)
 	docker push $(KUBEADM_BOOTSTRAP_CONTROLLER_IMG)-$(ARCH):$(TAG)
 	docker push $(KUBEADM_CONTROL_PLANE_CONTROLLER_IMG)-$(ARCH):$(TAG)
-
-.PHONY: docker-push-all
-docker-push-all: $(addprefix docker-push-,$(ALL_ARCH))  ## Push all the architecture docker images
-	$(MAKE) docker-push-manifest-core
-	$(MAKE) docker-push-manifest-kubeadm-bootstrap
-	$(MAKE) docker-push-manifest-kubeadm-control-plane
-
-docker-push-%:
-	$(MAKE) ARCH=$* docker-push
-
-.PHONY: docker-push-manifest-core
-docker-push-manifest-core: ## Push the multiarch manifest for the core docker images
-	## Minimum docker version 18.06.0 is required for creating and pushing manifest images.
-	docker manifest create --amend $(CONTROLLER_IMG):$(TAG) $(shell echo $(ALL_ARCH) | sed -e "s~[^ ]*~$(CONTROLLER_IMG)\-&:$(TAG)~g")
-	@for arch in $(ALL_ARCH); do docker manifest annotate --arch $${arch} ${CONTROLLER_IMG}:${TAG} ${CONTROLLER_IMG}-$${arch}:${TAG}; done
-	docker manifest push --purge $(CONTROLLER_IMG):$(TAG)
-	$(MAKE) set-manifest-image MANIFEST_IMG=$(CONTROLLER_IMG) MANIFEST_TAG=$(TAG) TARGET_RESOURCE="./config/default/manager_image_patch.yaml"
-	$(MAKE) set-manifest-pull-policy TARGET_RESOURCE="./config/default/manager_pull_policy.yaml"
-
-.PHONY: docker-push-manifest-kubeadm-bootstrap
-docker-push-manifest-kubeadm-bootstrap: ## Push the multiarch manifest for the the kubeadm bootstrap docker images
-	## Minimum docker version 18.06.0 is required for creating and pushing manifest images.
-	docker manifest create --amend $(KUBEADM_BOOTSTRAP_CONTROLLER_IMG):$(TAG) $(shell echo $(ALL_ARCH) | sed -e "s~[^ ]*~$(KUBEADM_BOOTSTRAP_CONTROLLER_IMG)\-&:$(TAG)~g")
-	@for arch in $(ALL_ARCH); do docker manifest annotate --arch $${arch} ${KUBEADM_BOOTSTRAP_CONTROLLER_IMG}:${TAG} ${KUBEADM_BOOTSTRAP_CONTROLLER_IMG}-$${arch}:${TAG}; done
-	docker manifest push --purge $(KUBEADM_BOOTSTRAP_CONTROLLER_IMG):$(TAG)
-	$(MAKE) set-manifest-image MANIFEST_IMG=$(KUBEADM_BOOTSTRAP_CONTROLLER_IMG) MANIFEST_TAG=$(TAG) TARGET_RESOURCE="./bootstrap/kubeadm/config/default/manager_image_patch.yaml"
-	$(MAKE) set-manifest-pull-policy TARGET_RESOURCE="./bootstrap/kubeadm/config/default/manager_pull_policy.yaml"
-
-.PHONY: docker-push-manifest-kubeadm-control-plane
-docker-push-manifest-kubeadm-control-plane: ## Push the multiarch manifest for the the kubeadm control plane docker images
-	## Minimum docker version 18.06.0 is required for creating and pushing manifest images.
-	docker manifest create --amend $(KUBEADM_CONTROL_PLANE_CONTROLLER_IMG):$(TAG) $(shell echo $(ALL_ARCH) | sed -e "s~[^ ]*~$(KUBEADM_CONTROL_PLANE_CONTROLLER_IMG)\-&:$(TAG)~g")
-	@for arch in $(ALL_ARCH); do docker manifest annotate --arch $${arch} ${KUBEADM_CONTROL_PLANE_CONTROLLER_IMG}:${TAG} ${KUBEADM_CONTROL_PLANE_CONTROLLER_IMG}-$${arch}:${TAG}; done
-	docker manifest push --purge $(KUBEADM_CONTROL_PLANE_CONTROLLER_IMG):$(TAG)
-	$(MAKE) set-manifest-image MANIFEST_IMG=$(KUBEADM_CONTROL_PLANE_CONTROLLER_IMG) MANIFEST_TAG=$(TAG) TARGET_RESOURCE="./controlplane/kubeadm/config/default/manager_image_patch.yaml"
-	$(MAKE) set-manifest-pull-policy TARGET_RESOURCE="./controlplane/kubeadm/config/default/manager_pull_policy.yaml"
 
 .PHONY: set-manifest-pull-policy
 set-manifest-pull-policy:
@@ -614,12 +537,7 @@ clean: ## Remove all generated files
 
 .PHONY: clean-bin
 clean-bin: ## Remove all generated binaries
-	rm -rf $(BIN_DIR)
 	rm -rf $(TOOLS_BIN_DIR)
-
-.PHONY: clean-book
-clean-book: ## Remove all generated GitBook files
-	rm -rf ./docs/book/_book
 
 .PHONY: clean-release
 clean-release: ## Remove the release folder
@@ -657,36 +575,34 @@ tilt-prepare: $(TILT_PREPARE) ## Build a local copy of tilt-prepare
 kpromo: $(KPROMO)  ## Build a local copy of kpromo
 
 $(SETUP_ENVTEST): $(TOOLS_DIR)/go.mod # Build setup-envtest from tools folder.
-	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/setup-envtest sigs.k8s.io/controller-runtime/tools/setup-envtest
+	cd $(TOOLS_DIR); go build -tags=tools -o $(TOOLS_BIN_DIR)/setup-envtest sigs.k8s.io/controller-runtime/tools/setup-envtest
 
 $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod # Build controller-gen from tools folder.
-	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
+	cd $(TOOLS_DIR); go build -tags=tools -o $(TOOLS_BIN_DIR)/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
 
 $(GOTESTSUM): $(TOOLS_DIR)/go.mod # Build gotestsum from tools folder.
-	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/gotestsum gotest.tools/gotestsum
+	cd $(TOOLS_DIR); go build -tags=tools -o $(TOOLS_BIN_DIR)/gotestsum gotest.tools/gotestsum
 
 $(CONVERSION_GEN): $(TOOLS_DIR)/go.mod # Build conversion-gen from tools folder.
-	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/conversion-gen k8s.io/code-generator/cmd/conversion-gen
+	cd $(TOOLS_DIR); go build -tags=tools -o $(TOOLS_BIN_DIR)/conversion-gen k8s.io/code-generator/cmd/conversion-gen
 
 $(CONVERSION_VERIFIER): $(TOOLS_DIR)/go.mod # Build conversion-verifier from tools folder.
-	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/conversion-verifier sigs.k8s.io/cluster-api/hack/tools/conversion-verifier
+	cd $(TOOLS_DIR); go build -tags=tools -o $(TOOLS_BIN_DIR)/conversion-verifier sigs.k8s.io/cluster-api/hack/tools/conversion-verifier
 
 $(TILT_PREPARE): $(TOOLS_DIR)/go.mod # Build tilt-prepare from tools folder.
-	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/tilt-prepare sigs.k8s.io/cluster-api/hack/tools/tilt-prepare
+	cd $(TOOLS_DIR); go build -tags=tools -o $(TOOLS_BIN_DIR)/tilt-prepare sigs.k8s.io/cluster-api/hack/tools/tilt-prepare
 
 $(GO_APIDIFF): $(TOOLS_DIR)/go.mod # Build go-apidiff from tools folder.
-	cd $(TOOLS_DIR) && go build -tags=tools -o $(GO_APIDIFF_BIN) github.com/joelanford/go-apidiff
+	cd $(TOOLS_DIR) && go build -tags=tools -o $(TOOLS_BIN_DIR)/go-apidiff github.com/joelanford/go-apidiff
 
 $(ENVSUBST): $(TOOLS_DIR)/go.mod # Build envsubst from tools folder.
-	cd $(TOOLS_DIR) && go build -tags=tools -o $(ENVSUBST_BIN) github.com/drone/envsubst/v2/cmd/envsubst
+	cd $(TOOLS_DIR) && go build -tags=tools -o $(TOOLS_BIN_DIR)/envsubst github.com/drone/envsubst/v2/cmd/envsubst
 
 $(KPROMO): $(TOOLS_DIR)/go.mod # Build kpromo from tools folder.
-	cd $(TOOLS_DIR) && go build -tags=tools -o $(KPROMO_BIN) sigs.k8s.io/promo-tools/v3/cmd/kpromo
+	cd $(TOOLS_DIR) && go build -tags=tools -o $(TOOLS_BIN_DIR)/kpromo sigs.k8s.io/promo-tools/v3/cmd/kpromo
+
+$(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod # Build golangci-lint from tools folder.
+	cd $(TOOLS_DIR); go build -tags=tools -o $(TOOLS_BIN_DIR)/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
 
 $(KUSTOMIZE): # Download kustomize using hack script into tools folder.
 	hack/ensure-kustomize.sh
-
-$(GOLANGCI_LINT): .github/workflows/golangci-lint.yml # Download golanci-lint using hack script into tools folder.
-	hack/ensure-golangci-lint.sh \
-		-b $(TOOLS_DIR)/$(BIN_DIR) \
-		$(shell cat .github/workflows/golangci-lint.yml | grep version | sed 's/.*version: //')

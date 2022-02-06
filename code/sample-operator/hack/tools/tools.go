@@ -6,6 +6,7 @@ package tools
 
 import (
 	_ "github.com/drone/envsubst/v2/cmd/envsubst"
+	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
 	_ "github.com/joelanford/go-apidiff"
 	_ "github.com/onsi/ginkgo/ginkgo"
 	_ "gotest.tools/gotestsum"
