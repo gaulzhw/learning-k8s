@@ -3,7 +3,7 @@ package restful
 import (
 	"fmt"
 
-	"github.com/emicklei/go-restful"
+	"github.com/emicklei/go-restful/v3"
 )
 
 func print(req *restful.Request, resp *restful.Response, chain *restful.FilterChain) {

@@ -1,16 +1,11 @@
 package main
 
 import (
-	"github.com/gaulzhw/learning-k8s/sample/clientgo"
-	"github.com/gaulzhw/learning-k8s/sample/clientgo/client"
-	"github.com/gaulzhw/learning-k8s/sample/restful"
+	"github.com/gaulzhw/learning-k8s/sample/pkg/clientgo"
+	"github.com/gaulzhw/learning-k8s/sample/pkg/clientgo/client"
 )
 
 func main() {
-	// go-restful
-	restful.StartContainer()
-	restful.StartServer()
-
 	// client
 	client.InitRestClient()
 	client.InitDynamicClient()

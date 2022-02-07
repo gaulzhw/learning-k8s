@@ -3,9 +3,9 @@ package restful
 import (
 	"net/http"
 
-	"github.com/emicklei/go-restful"
+	"github.com/emicklei/go-restful/v3"
 
-	"github.com/gaulzhw/learning-k8s/sample/restful/filter"
+	"github.com/gaulzhw/learning-k8s/sample/pkg/restful/filter"
 )
 
 func StartServer() {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/client/v3"
 )
 
 func NewEtcdClient() (*clientv3.Client, error) {
