@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/golangci/golangci-lint v1.31.0
-	k8s.io/code-generator v0.23.0
+	k8s.io/code-generator v0.23.3
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20220201142011-b1d9a1641f31
 	sigs.k8s.io/controller-tools v0.8.0
 	sigs.k8s.io/promo-tools/v3 v3.3.0

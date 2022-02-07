@@ -28,8 +28,8 @@ REGISTRY ?= gcr.io/$(shell gcloud config get-value project)
 IMAGE_NAME ?= sample-operator
 CONTROLLER_IMG ?= $(REGISTRY)/$(IMAGE_NAME)
 
-# It is set by Prow GIT_TAG, a git-based tag of the form vYYYYMMDD-hash, e.g., v20210120-v0.3.10-308-gc61521971
-TAG ?= dev
+# Set image tag from branch or tag
+TAG ?= $(shell git rev-parse --abbrev-ref HEAD | grep -v HEAD || git describe --tags || git  rev-parse HEAD)
 
 # Allow overriding the imagePullPolicy
 PULL_POLICY ?= Always
@@ -46,7 +46,6 @@ help:  # Display this help
 .PHONY: generate
 generate: ## Run all generate-manifests-*, generate-go-deepcopy-* and generate-go-conversions-* targets
 	$(MAKE) generate-manifests generate-go-deepcopy generate-go-conversions
-	$(MAKE) -C $(CAPD_DIR) generate
 
 .PHONY: generate-manifests
 generate-manifests: $(addprefix generate-manifests-,$(ALL_GENERATE_MODULES)) ## Run all generate-manifests-* targets
@@ -74,16 +73,7 @@ generate-go-deepcopy:  ## Run all generate-go-deepcopy-* targets
 .PHONY: generate-go-deepcopy-core
 generate-go-deepcopy-core: $(CONTROLLER_GEN) ## Generate deepcopy go code for core
 	$(CONTROLLER_GEN) \
-		object:headerFile=./hack/boilerplate/boilerplate.generatego.txt \
-		paths=./api/... \
-		paths=./$(EXP_DIR)/api/... \
-		paths=./$(EXP_DIR)/addons/api/... \
-		paths=./cmd/clusterctl/... \
-		paths=./internal/test/builder/...
-
-.PHONY: diagrams
-diagrams: ## Generate diagrams for *.plantuml files
-	$(MAKE) -C docs diagrams
+		paths=./api/...
 
 ## --------------------------------------
 ## Lint / Verify
