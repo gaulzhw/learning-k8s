@@ -12,7 +12,15 @@ BIN_DIR := bin
 TOOLS_DIR := hack/tools
 TOOLS_BIN_DIR := $(TOOLS_DIR)/$(BIN_DIR)
 
-export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
+#
+# Binaries.
+#
+# Note: Need to use abspath so we can invoke these from subdirectories
+KUSTOMIZE := $(abspath $(TOOLS_BIN_DIR)/kustomize)
+CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/controller-gen)
+GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/golangci-lint)
+CONVERSION_GEN := $(abspath $(TOOLS_BIN_DIR)/conversion-gen)
+CONVERSION_VERIFIER := $(abspath $(TOOLS_BIN_DIR)/conversion-verifier)
 
 #
 # Container.
@@ -24,8 +32,8 @@ GO_CONTAINER_IMAGE ?= docker.io/library/golang:$(GO_CONTAINER_VERSION)
 # Image.
 #
 # Define Docker related variables. Releases should modify and double check these vars.
-REGISTRY ?= gcr.io/$(shell gcloud config get-value project)
-IMAGE_NAME ?= sample-operator
+REGISTRY ?= harbor.test.sample.io
+IMAGE_NAME ?= sample/sample-operator
 CONTROLLER_IMG ?= $(REGISTRY)/$(IMAGE_NAME)
 
 # Set image tag from branch or tag
@@ -45,33 +53,18 @@ help:  # Display this help
 
 .PHONY: generate
 generate: ## Run all generate-manifests-*, generate-go-deepcopy-* and generate-go-conversions-* targets
-	$(MAKE) generate-manifests generate-go-deepcopy generate-go-conversions
+	$(MAKE) generate-manifests generate-go-deepcopy
 
 .PHONY: generate-manifests
-generate-manifests: $(addprefix generate-manifests-,$(ALL_GENERATE_MODULES)) ## Run all generate-manifests-* targets
-
-.PHONY: generate-manifests-core
-generate-manifests-core: $(CONTROLLER_GEN) $(KUSTOMIZE) ## Generate manifests e.g. CRD, RBAC etc. for core
-	$(CONTROLLER_GEN) \
-		paths=./api/... \
-		paths=./controllers/... \
-		crd:crdVersions=v1 \
-		rbac:roleName=manager-role \
-		output:crd:dir=./config/crd/bases \
-		output:webhook:dir=./config/webhook \
-		webhook
+generate-manifests: $(CONTROLLER_GEN) $(KUSTOMIZE) ## Generate manifests e.g. CRD, RBAC etc. for core
 	$(CONTROLLER_GEN) \
 		paths=./api/... \
 		crd:crdVersions=v1 \
-		output:crd:dir=./cmd/clusterctl/config/crd/bases
-	$(KUSTOMIZE) build $(CLUSTERCTL_MANIFEST_DIR)/crd > $(CLUSTERCTL_MANIFEST_DIR)/manifest/clusterctl-api.yaml
+		output:crd:dir=./config/crd/bases
+	$(KUSTOMIZE) build $(MANIFEST_DIR)/crd > $(MANIFEST_DIR)/manifest/crd.yaml
 
 .PHONY: generate-go-deepcopy
-generate-go-deepcopy:  ## Run all generate-go-deepcopy-* targets
-	$(MAKE) $(addprefix generate-go-deepcopy-,$(ALL_GENERATE_MODULES))
-
-.PHONY: generate-go-deepcopy-core
-generate-go-deepcopy-core: $(CONTROLLER_GEN) ## Generate deepcopy go code for core
+generate-go-deepcopy: $(CONTROLLER_GEN) ## Generate deepcopy go code for core
 	$(CONTROLLER_GEN) \
 		paths=./api/...
 
@@ -157,57 +150,19 @@ docker-push-core: ## Push the docker images
 
 ##@ release:
 
-RELEASE_TAG ?= $(shell git describe --abbrev=0 2>/dev/null)
-ifneq (,$(findstring -,$(RELEASE_TAG)))
-    PRE_RELEASE=true
-endif
-
 .PHONY: release
-release: clean-release ## Build and push container images using the latest git tag for the commit
-	@if [ -z "${RELEASE_TAG}" ]; then echo "RELEASE_TAG is not set"; exit 1; fi
-	@if ! [ -z "$$(git status --porcelain)" ]; then echo "Your local git repository contains uncommitted changes, use git clean before proceeding."; exit 1; fi
-	git checkout "${RELEASE_TAG}"
-	# Build binaries first.
-	GIT_VERSION=$(RELEASE_TAG) $(MAKE) release-binaries
-	# Set the manifest image to the production bucket.
-	$(MAKE) manifest-modification REGISTRY=$(PROD_REGISTRY)
-	## Build the manifests
-	$(MAKE) release-manifests clean-release-git
-	## Build the development manifests
-	$(MAKE) release-manifests-dev clean-release-git
-
-.PHONY: manifest-modification
-manifest-modification: # Set the manifest images to the staging/production bucket.
-	$(MAKE) set-manifest-image \
-		MANIFEST_IMG=$(REGISTRY)/$(IMAGE_NAME) MANIFEST_TAG=$(RELEASE_TAG) \
-		TARGET_RESOURCE="./config/default/manager_image_patch.yaml"
-	$(MAKE) set-manifest-image \
-		MANIFEST_IMG=$(REGISTRY)/$(KUBEADM_BOOTSTRAP_IMAGE_NAME) MANIFEST_TAG=$(RELEASE_TAG) \
-		TARGET_RESOURCE="./bootstrap/kubeadm/config/default/manager_image_patch.yaml"
-	$(MAKE) set-manifest-image \
-		MANIFEST_IMG=$(REGISTRY)/$(KUBEADM_CONTROL_PLANE_IMAGE_NAME) MANIFEST_TAG=$(RELEASE_TAG) \
-		TARGET_RESOURCE="./controlplane/kubeadm/config/default/manager_image_patch.yaml"
-	$(MAKE) set-manifest-pull-policy PULL_POLICY=IfNotPresent TARGET_RESOURCE="./config/default/manager_pull_policy.yaml"
-	$(MAKE) set-manifest-pull-policy PULL_POLICY=IfNotPresent TARGET_RESOURCE="./bootstrap/kubeadm/config/default/manager_pull_policy.yaml"
-	$(MAKE) set-manifest-pull-policy PULL_POLICY=IfNotPresent TARGET_RESOURCE="./controlplane/kubeadm/config/default/manager_pull_policy.yaml"
+release: ## Build and push container images using the latest git tag for the commit
+	# Build the manifests
+	$(MAKE) release-manifests
 
 .PHONY: release-manifests
-release-manifests: $(RELEASE_DIR) $(KUSTOMIZE) ## Build the manifests to publish with a release
+release-manifests: $(KUSTOMIZE) ## Build the manifests to publish with a release
 	# Build core-components.
-	$(KUSTOMIZE) build config/default > $(RELEASE_DIR)/core-components.yaml
+	$(KUSTOMIZE) build config/default > core-components.yaml
 	# Build bootstrap-components.
-	$(KUSTOMIZE) build bootstrap/kubeadm/config/default > $(RELEASE_DIR)/bootstrap-components.yaml
+	$(KUSTOMIZE) build bootstrap/kubeadm/config/default > bootstrap-components.yaml
 	# Build control-plane-components.
-	$(KUSTOMIZE) build controlplane/kubeadm/config/default > $(RELEASE_DIR)/control-plane-components.yaml
-
-	## Build cluster-api-components (aggregate of all of the above).
-	cat $(RELEASE_DIR)/core-components.yaml > $(RELEASE_DIR)/cluster-api-components.yaml
-	echo "---" >> $(RELEASE_DIR)/cluster-api-components.yaml
-	cat $(RELEASE_DIR)/bootstrap-components.yaml >> $(RELEASE_DIR)/cluster-api-components.yaml
-	echo "---" >> $(RELEASE_DIR)/cluster-api-components.yaml
-	cat $(RELEASE_DIR)/control-plane-components.yaml >> $(RELEASE_DIR)/cluster-api-components.yaml
-	# Add metadata to the release artifacts
-	cp metadata.yaml $(RELEASE_DIR)/metadata.yaml
+	$(KUSTOMIZE) build controlplane/kubeadm/config/default > control-plane-components.yaml
 
 ## --------------------------------------
 ## Manifest
@@ -216,12 +171,12 @@ release-manifests: $(RELEASE_DIR) $(KUSTOMIZE) ## Build the manifests to publish
 ##@ manifest:
 
 .PHONY: set-manifest-pull-policy
-set-manifest-pull-policy:
+set-manifest-pull-policy: ## Setup manifest pull policy
 	$(info Updating kustomize pull policy file for manager resources)
 	sed -i'' -e 's@imagePullPolicy: .*@imagePullPolicy: '"$(PULL_POLICY)"'@' $(TARGET_RESOURCE)
 
 .PHONY: set-manifest-image
-set-manifest-image:
+set-manifest-image: ## Setup manifest image
 	$(info Updating kustomize image patch file for manager resource)
 	sed -i'' -e 's@image: .*@image: '"${MANIFEST_IMG}:$(MANIFEST_TAG)"'@' $(TARGET_RESOURCE)
 

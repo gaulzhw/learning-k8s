@@ -1,6 +1,0 @@
-apiVersion: apps.example.io/v1alpha1
-kind: Application
-metadata:
-  name: application-sample
-spec:
-  # TODO(user): Add fields here
