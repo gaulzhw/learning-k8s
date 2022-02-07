@@ -20,25 +20,43 @@ var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 
+	probeAddr            string
 	metricsAddr          string
 	enableLeaderElection bool
-	probeAddr            string
 )
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(appsv1alpha1.AddToScheme(scheme))
-	//+kubebuilder:scaffold:scheme
 
-	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
+	//+kubebuilder:scaffold:scheme
+}
+
+// InitFlags initializes the flags.
+func InitFlags(fs *flag.FlagSet) {
+	if fs == nil {
+		fs = flag.CommandLine
+	}
+
+	fs.StringVar(&probeAddr, "health-probe-bind-address", ":8081",
+		"The address the probe endpoint binds to.")
+
+	fs.StringVar(&metricsAddr, "metrics-bind-address", "0",
+		"The address the metric endpoint binds to.")
+
+	fs.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 }
 
 func main() {
+	InitFlags(nil)
 	flag.Parse()
+
 	ctrl.SetLogger(zap.New())
+
+	flag.VisitAll(func(flag *flag.Flag) {
+		setupLog.Info("flag value", "name", flag.Name, "value", flag.Value)
+	})
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,

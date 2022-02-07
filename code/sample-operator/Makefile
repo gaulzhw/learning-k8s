@@ -1,13 +1,13 @@
 # Ensure Make is run with bash shell as some syntax below is bash-specific
 SHELL:=/usr/bin/env bash
 
-.DEFAULT_GOAL:=help
+.DEFAULT_GOAL := help
 
 #
 # Directories.
 #
 # Full directory of where the Makefile resides
-ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 BIN_DIR := bin
 TOOLS_DIR := hack/tools
 TOOLS_BIN_DIR := $(TOOLS_DIR)/$(BIN_DIR)
@@ -42,7 +42,7 @@ TAG ?= $(shell git rev-parse --abbrev-ref HEAD | grep -v HEAD || git describe --
 # Allow overriding the imagePullPolicy
 PULL_POLICY ?= Always
 
-help:  # Display this help
+help: # Display this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n\nTargets:\n"} /^[0-9A-Za-z_-]+:.*?##/ { printf "  \033[36m%-45s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ## --------------------------------------
@@ -52,7 +52,7 @@ help:  # Display this help
 ##@ generate:
 
 .PHONY: generate
-generate: ## Run all generate-manifests-*, generate-go-deepcopy-* and generate-go-conversions-* targets
+generate: ## Run all generate-manifests, generate-go-deepcopy and generate-go-conversions targets
 	$(MAKE) generate-manifests generate-go-deepcopy
 
 .PHONY: generate-manifests
@@ -61,7 +61,7 @@ generate-manifests: $(CONTROLLER_GEN) $(KUSTOMIZE) ## Generate manifests e.g. CR
 		paths=./api/... \
 		crd:crdVersions=v1 \
 		output:crd:dir=./config/crd/bases
-	$(KUSTOMIZE) build $(MANIFEST_DIR)/crd > $(MANIFEST_DIR)/manifest/crd.yaml
+	$(KUSTOMIZE) build config/crd > deploy/crd.yaml
 
 .PHONY: generate-go-deepcopy
 generate-go-deepcopy: $(CONTROLLER_GEN) ## Generate deepcopy go code for core
@@ -87,21 +87,8 @@ lint: $(GOLANGCI_LINT) ## Lint the codebase
 lint-fix: $(GOLANGCI_LINT) ## Lint the codebase and run auto-fixers if supported by the linter
 	GOLANGCI_LINT_EXTRA_ARGS=--fix $(MAKE) lint
 
-.PHONY: format-tiltfile
-format-tiltfile: ## Format the Tiltfile
-	./hack/verify-starlark.sh fix
-
-ALL_VERIFY_CHECKS = doctoc boilerplate shellcheck tiltfile modules gen conversions docker-provider book-links
-
-.PHONY: verify
-verify: $(addprefix verify-,$(ALL_VERIFY_CHECKS)) ## Run all verify-* targets
-
 .PHONY: verify-modules
 verify-modules: modules  ## Verify go modules are up to date
-	@if !(git diff --quiet HEAD -- go.sum go.mod $(TOOLS_DIR)/go.mod $(TOOLS_DIR)/go.sum $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum); then \
-		git diff; \
-		echo "go module files are out of date"; exit 1; \
-	fi
 	@if (find . -name 'go.mod' | xargs -n1 grep -q -i 'k8s.io/client-go.*+incompatible'); then \
 		find . -name "go.mod" -exec grep -i 'k8s.io/client-go.*+incompatible' {} \; -print; \
 		echo "go module contains an incompatible client-go version"; exit 1; \
@@ -114,34 +101,20 @@ verify-gen: generate  ## Verfiy go generated files are up to date
 		echo "generated files are out of date, run make generate"; exit 1; \
 	fi
 
-.PHONY: verify-conversions
-verify-conversions: $(CONVERSION_VERIFIER)  ## Verifies expected API conversion are in place
-	$(CONVERSION_VERIFIER)
-
-.PHONY: verify-shellcheck
-verify-shellcheck: ## Verify shell files
-	./hack/verify-shellcheck.sh
-
 ## --------------------------------------
 ## Binaries
 ## --------------------------------------
 
 ##@ build:
 
-ALL_DOCKER_BUILD = core
-
 .PHONY: docker-build
-docker-build: ## Run all docker-build-* targets
-	$(MAKE) $(addprefix docker-build-,$(ALL_DOCKER_BUILD))
-
-.PHONY: docker-build-core
-docker-build-core: ## Build the docker image for core controller manager
-	docker build --build-arg builder_image=$(GO_CONTAINER_IMAGE) --build-arg goproxy=$(GOPROXY) --build-arg ldflags="$(LDFLAGS)" . -t $(CONTROLLER_IMG):$(TAG)
+docker-build: ## Build the docker image for core controller manager
+	docker build --build-arg builder_image=$(GO_CONTAINER_IMAGE) . -t $(CONTROLLER_IMG):$(TAG)
 	$(MAKE) set-manifest-image MANIFEST_IMG=$(CONTROLLER_IMG) MANIFEST_TAG=$(TAG) TARGET_RESOURCE="./config/default/manager_image_patch.yaml"
 	$(MAKE) set-manifest-pull-policy TARGET_RESOURCE="./config/default/manager_pull_policy.yaml"
 
-.PHONY: docker-push-core
-docker-push-core: ## Push the docker images
+.PHONY: docker-push
+docker-push: ## Push the docker images
 	docker push $(CONTROLLER_IMG):$(TAG)
 
 ## --------------------------------------
@@ -157,12 +130,7 @@ release: ## Build and push container images using the latest git tag for the com
 
 .PHONY: release-manifests
 release-manifests: $(KUSTOMIZE) ## Build the manifests to publish with a release
-	# Build core-components.
-	$(KUSTOMIZE) build config/default > core-components.yaml
-	# Build bootstrap-components.
-	$(KUSTOMIZE) build bootstrap/kubeadm/config/default > bootstrap-components.yaml
-	# Build control-plane-components.
-	$(KUSTOMIZE) build controlplane/kubeadm/config/default > control-plane-components.yaml
+	$(KUSTOMIZE) build config/default > deploy/components.yaml
 
 ## --------------------------------------
 ## Manifest
@@ -205,4 +173,4 @@ $(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod # Build golangci-lint from tools folder.
 	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
 
 $(KUSTOMIZE): # Download kustomize using hack script into tools folder.
-	hack/ensure-kustomize.sh
+	KUSTOMIZE_VERSION=4.5.1 hack/ensure-kustomize.sh
