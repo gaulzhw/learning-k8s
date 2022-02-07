@@ -1,4 +1,4 @@
-module github.com/gaulzhw/learning-k8s/hack/tools
+module github.com/gaulzhw/learning-k8s/sample-operator/hack/tools
 
 go 1.17
 
