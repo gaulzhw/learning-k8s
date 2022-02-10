@@ -17,10 +17,10 @@ TOOLS_BIN_DIR := $(TOOLS_DIR)/$(BIN_DIR)
 #
 # Note: Need to use abspath so we can invoke these from subdirectories
 KUSTOMIZE := $(abspath $(TOOLS_BIN_DIR)/kustomize)
-CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/controller-gen)
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/golangci-lint)
+CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/controller-gen)
 CONVERSION_GEN := $(abspath $(TOOLS_BIN_DIR)/conversion-gen)
-CONVERSION_VERIFIER := $(abspath $(TOOLS_BIN_DIR)/conversion-verifier)
+APISERVER_RUNTIME_GEN := $(abspath $(TOOLS_BIN_DIR)/apiserver-runtime-gen)
 
 #
 # Container.
@@ -33,7 +33,7 @@ GO_CONTAINER_IMAGE ?= docker.io/library/golang:$(GO_CONTAINER_VERSION)
 #
 # Define Docker related variables. Releases should modify and double check these vars.
 REGISTRY ?= harbor.test.sample.io
-IMAGE_NAME ?= sample/sample-operator
+IMAGE_NAME ?= sample/sample-apiserver
 CONTROLLER_IMG ?= $(REGISTRY)/$(IMAGE_NAME)
 
 # Set image tag from branch or tag
@@ -53,20 +53,18 @@ help: # Display this help
 
 .PHONY: generate
 generate: ## Run all generate-manifests, generate-go-deepcopy and generate-go-conversions targets
-	$(MAKE) generate-manifests generate-go-deepcopy
+	$(MAKE) generate-manifests
 
 .PHONY: generate-manifests
-generate-manifests: $(CONTROLLER_GEN) $(KUSTOMIZE) ## Generate manifests e.g. CRD, RBAC etc. for core
-	$(CONTROLLER_GEN) \
-		paths=./api/... \
-		crd:crdVersions=v1 \
-		output:crd:dir=./config/crd/bases
-	$(KUSTOMIZE) build config/crd > deploy/crd.yaml
-
-.PHONY: generate-go-deepcopy
-generate-go-deepcopy: $(CONTROLLER_GEN) ## Generate deepcopy go code for core
-	$(CONTROLLER_GEN) \
-		paths=./api/...
+generate-manifests: $(APISERVER_RUNTIME_GEN) ## Generate manifests e.g. CRD, RBAC etc. for core
+	$(APISERVER_RUNTIME_GEN) \
+		-g client-gen \
+		-g deepcopy-gen \
+		-g informer-gen \
+		-g lister-gen \
+		-g openapi-gen \
+		--module github.com/gaulzhw/learning-k8s/sample-apiserver \
+		--versions github.com/gaulzhw/learning-k8s/sample-apiserver/pkg/apis/sample/v1alpha1
 
 ## --------------------------------------
 ## Lint / Verify
@@ -154,11 +152,15 @@ set-manifest-image: ## Setup manifest image
 
 ##@ hack/tools:
 
+golangci-lint: $(GOLANGCI_LINT) ## Build a local copy of golangci-lint
 controller-gen: $(CONTROLLER_GEN) ## Build a local copy of controller-gen
 conversion-gen: $(CONVERSION_GEN) ## Build a local copy of conversion-gen
+apiserver-runtime-gen: $(APISERVER_RUNTIME_GEN) ## Build a local copy of apiserver-runtime-gen
 kpromo: $(KPROMO)  ## Build a local copy of kpromo
-golangci-lint: $(GOLANGCI_LINT) ## Build a local copy of golangci-lint
 kustomize: $(KUSTOMIZE) ## Build a local copy of kustomize
+
+$(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod # Build golangci-lint from tools folder.
+	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
 
 $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod # Build controller-gen from tools folder.
 	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
@@ -166,11 +168,11 @@ $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod # Build controller-gen from tools folder.
 $(CONVERSION_GEN): $(TOOLS_DIR)/go.mod # Build conversion-gen from tools folder.
 	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/conversion-gen k8s.io/code-generator/cmd/conversion-gen
 
+$(APISERVER_RUNTIME_GEN): $(TOOLS_DIR)/go.mod # Build apiserver-runtime-gen from tools folder.
+	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/apiserver-runtime-gen sigs.k8s.io/apiserver-runtime/tools/apiserver-runtime-gen
+
 $(KPROMO): $(TOOLS_DIR)/go.mod # Build kpromo from tools folder.
 	cd $(TOOLS_DIR) && go build -tags=tools -o $(BIN_DIR)/kpromo sigs.k8s.io/promo-tools/v3/cmd/kpromo
-
-$(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod # Build golangci-lint from tools folder.
-	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
 
 $(KUSTOMIZE): # Download kustomize using hack script into tools folder.
 	KUSTOMIZE_VERSION=4.5.1 hack/ensure-kustomize.sh
