@@ -27,29 +27,25 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(appsv1alpha1.AddToScheme(scheme))
 
 	//+kubebuilder:scaffold:scheme
+	utilruntime.Must(appsv1alpha1.AddToScheme(scheme))
 }
 
 // InitFlags initializes the flags.
-func InitFlags(fs *flag.FlagSet) {
-	if fs == nil {
-		fs = flag.CommandLine
-	}
-
-	fs.StringVar(&probeAddr, "health-probe-bind-address", ":8081",
+func InitFlags() {
+	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081",
 		"The address the probe endpoint binds to.")
 
-	fs.StringVar(&metricsAddr, "metrics-bind-address", "0",
+	flag.StringVar(&metricsAddr, "metrics-bind-address", "0",
 		"The address the metric endpoint binds to.")
 
-	fs.BoolVar(&enableLeaderElection, "leader-elect", false,
+	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 }
 
 func main() {
-	InitFlags(nil)
+	InitFlags()
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New())
