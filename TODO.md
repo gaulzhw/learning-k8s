@@ -2,6 +2,8 @@
 
 
 
+- code-generate: http://bingerambo.com/posts/2021/05/k8s%E4%B8%AD%E7%9A%84crd%E5%BC%80%E5%8F%91/
+
 - 边缘计算, superedge kubeedge, 调研边缘计算的边端集群方式是否合适k8s-on-k8s业务集群master的部署形式，以减小网络不稳定带来的影响
 - lite-apiserver, https://cloud.tencent.com/developer/article/1809637?from=article.detail.1774436
 - 稳定性保障手册
