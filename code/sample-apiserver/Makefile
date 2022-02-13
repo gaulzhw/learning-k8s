@@ -11,6 +11,7 @@ ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 BIN_DIR := bin
 TOOLS_DIR := hack/tools
 TOOLS_BIN_DIR := $(TOOLS_DIR)/$(BIN_DIR)
+GEN_OUTPUT_BASE := --output-base=$(ROOT_DIR)
 
 #
 # Binaries.
@@ -19,8 +20,13 @@ TOOLS_BIN_DIR := $(TOOLS_DIR)/$(BIN_DIR)
 KUSTOMIZE := $(abspath $(TOOLS_BIN_DIR)/kustomize)
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/golangci-lint)
 CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/controller-gen)
+# code gen
+CLIENT_GEN := $(abspath $(TOOLS_BIN_DIR)/client-gen)
 CONVERSION_GEN := $(abspath $(TOOLS_BIN_DIR)/conversion-gen)
-APISERVER_RUNTIME_GEN := $(abspath $(TOOLS_BIN_DIR)/apiserver-runtime-gen)
+DEEPCOPY_GEN := $(abspath $(TOOLS_BIN_DIR)/deepcopy-gen)
+DEFAULT_GEN := $(abspath $(TOOLS_BIN_DIR)/defaulter-gen)
+INFORMER_GEN := $(abspath $(TOOLS_BIN_DIR)/informer-gen)
+LISTER_GEN := $(abspath $(TOOLS_BIN_DIR)/lister-gen)
 
 #
 # Container.
@@ -52,19 +58,57 @@ help: # Display this help
 ##@ generate:
 
 .PHONY: generate
-generate: ## Run all generate-manifests, generate-go-deepcopy and generate-go-conversions targets
-	$(MAKE) generate-manifests
+generate: ## Run all generate-xxx targes
+	$(MAKE) generate-go-client generate-go-conversion generate-go-deepcopy generate-go-default generate-go-informer generate-go-lister generate-manifests
 
 .PHONY: generate-manifests
-generate-manifests: $(APISERVER_RUNTIME_GEN) ## Generate manifests e.g. CRD, RBAC etc. for core
-	$(APISERVER_RUNTIME_GEN) \
-		-g client-gen \
-		-g deepcopy-gen \
-		-g informer-gen \
-		-g lister-gen \
-		-g openapi-gen \
-		--module github.com/gaulzhw/learning-k8s/sample-apiserver \
-		--versions github.com/gaulzhw/learning-k8s/sample-apiserver/pkg/apis/sample/v1alpha1
+generate-manifests: $(CONTROLLER_GEN) ## Generate manifests e.g. CRD, RBAC etc. for core
+	$(CONTROLLER_GEN) \
+		paths=./hack/apis/... \
+		crd:crdVersions=v1 \
+		output:crd:dir=./config/crd/bases
+
+.PHONY: generate-go-client
+generate-go-client: $(CLIENT_GEN) ## Generate client code
+	$(CLIENT_GEN) \
+		--input-dirs=./hack/apis \
+		--output-dirs=./hack/apis \
+		--output-file-base=zz_generated.client $(GEN_OUTPUT_BASE)
+
+.PHONY: generate-go-conversion
+generate-go-conversion: $(CONVERSION_GEN) ## Generate conversion code
+	$(CONVERSION_GEN) \
+		--input-dirs=./hack/apis \
+		--output-dirs=./hack/apis \
+		--output-file-base=zz_generated.conversion $(GEN_OUTPUT_BASE)
+
+.PHONY: generate-go-deepcopy
+generate-go-deepcopy: $(DEEPCOPY_GEN) ## Generate deepcopy code
+	$(DEEPCOPY_GEN) \
+		--input-dirs=./hack/apis \
+		--output-dirs=./hack/apis \
+		--output-file-base=zz_generated.deepcopy $(GEN_OUTPUT_BASE)
+
+.PHONY: generate-go-default
+generate-go-default: $(DEEPCOPY_GEN) ## Generate default code
+	$(DEEPCOPY_GEN) \
+		--input-dirs=./hack/apis \
+		--output-dirs=./hack/apis \
+		--output-file-base=zz_generated.default $(GEN_OUTPUT_BASE)
+
+.PHONY: generate-go-informer
+generate-go-informer: $(INFORMER_GEN) ## Generate informer code
+	$(INFORMER_GEN) \
+		--input-dirs=./hack/apis \
+		--output-dirs=./hack/apis \
+		--output-file-base=zz_generated.informer $(GEN_OUTPUT_BASE)
+
+.PHONY: generate-go-lister
+generate-go-lister: $(LISTER_GEN) ## Generate lister code
+	$(LISTER_GEN) \
+		--input-dirs=./hack/apis \
+		--output-dirs=./hack/apis \
+		--output-file-base=zz_generated.lister $(GEN_OUTPUT_BASE)
 
 ## --------------------------------------
 ## Lint / Verify
@@ -154,25 +198,37 @@ set-manifest-image: ## Setup manifest image
 
 golangci-lint: $(GOLANGCI_LINT) ## Build a local copy of golangci-lint
 controller-gen: $(CONTROLLER_GEN) ## Build a local copy of controller-gen
+client-gen: $(CLIENT_GEN) ## Build a local copy of client-gen
 conversion-gen: $(CONVERSION_GEN) ## Build a local copy of conversion-gen
-apiserver-runtime-gen: $(APISERVER_RUNTIME_GEN) ## Build a local copy of apiserver-runtime-gen
-kpromo: $(KPROMO)  ## Build a local copy of kpromo
+deepcopy-gen: $(DEEPCOPY_GEN) ## Build a local copy of deepcopy-gen
+default-gen: $(DEFAULT_GEN) ## Build a local copy of default-gen
+informer-gen: $(INFORMER_GEN) ## Build a local copy of informer-gen
+lister-gen: $(LISTER_GEN) ## Build a local copy of lister-gen
 kustomize: $(KUSTOMIZE) ## Build a local copy of kustomize
 
 $(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod # Build golangci-lint from tools folder.
 	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
 
 $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod # Build controller-gen from tools folder.
-	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
+	cd $(TOOLS_DIR); go build -tags=tools $(BIN_DIR)/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
+
+$(CLIENT_GEN): $(TOOLS_DIR)/go.mod # Build client-gen from tools folder.
+	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/client-gen k8s.io/code-generator/cmd/client-gen
 
 $(CONVERSION_GEN): $(TOOLS_DIR)/go.mod # Build conversion-gen from tools folder.
 	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/conversion-gen k8s.io/code-generator/cmd/conversion-gen
 
-$(APISERVER_RUNTIME_GEN): $(TOOLS_DIR)/go.mod # Build apiserver-runtime-gen from tools folder.
-	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/apiserver-runtime-gen sigs.k8s.io/apiserver-runtime/tools/apiserver-runtime-gen
+$(DEEPCOPY_GEN): $(TOOLS_DIR)/go.mod # Build deepcopy-gen from tools folder.
+	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/deepcopy-gen k8s.io/code-generator/cmd/deepcopy-gen
 
-$(KPROMO): $(TOOLS_DIR)/go.mod # Build kpromo from tools folder.
-	cd $(TOOLS_DIR) && go build -tags=tools -o $(BIN_DIR)/kpromo sigs.k8s.io/promo-tools/v3/cmd/kpromo
+$(DEFAULT_GEN): $(TOOLS_DIR)/go.mod # Build defatul-gen from tools folder.
+	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/defatul-gen k8s.io/code-generator/cmd/defatul-gen
+
+$(INFORMER_GEN): $(TOOLS_DIR)/go.mod # Build informer-gen from tools folder.
+	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/informer-gen k8s.io/code-generator/cmd/informer-gen
+
+$(LISTER_GEN): $(TOOLS_DIR)/go.mod # Build lister-gen from tools folder.
+	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/lister-gen k8s.io/code-generator/cmd/lister-gen
 
 $(KUSTOMIZE): # Download kustomize using hack script into tools folder.
 	KUSTOMIZE_VERSION=4.5.1 hack/ensure-kustomize.sh
