@@ -64,50 +64,50 @@ generate: ## Run all generate-xxx targes
 .PHONY: generate-manifests
 generate-manifests: $(CONTROLLER_GEN) ## Generate manifests e.g. CRD, RBAC etc. for core
 	$(CONTROLLER_GEN) \
-		paths=./hack/apis/... \
+		paths=./pkg/apis/... \
 		crd:crdVersions=v1 \
 		output:crd:dir=./config/crd/bases
 
 .PHONY: generate-go-client
 generate-go-client: $(CLIENT_GEN) ## Generate client code
 	$(CLIENT_GEN) \
-		--input-dirs=./hack/apis \
-		--output-dirs=./hack/apis \
+		--input-dirs=./pkg/apis \
+		--output-dirs=./pkg/apis \
 		--output-file-base=zz_generated.client $(GEN_OUTPUT_BASE)
 
 .PHONY: generate-go-conversion
 generate-go-conversion: $(CONVERSION_GEN) ## Generate conversion code
 	$(CONVERSION_GEN) \
-		--input-dirs=./hack/apis \
-		--output-dirs=./hack/apis \
+		--input-dirs=./pkg/apis \
+		--output-dirs=./pkg/apis \
 		--output-file-base=zz_generated.conversion $(GEN_OUTPUT_BASE)
 
 .PHONY: generate-go-deepcopy
 generate-go-deepcopy: $(DEEPCOPY_GEN) ## Generate deepcopy code
 	$(DEEPCOPY_GEN) \
-		--input-dirs=./hack/apis \
-		--output-dirs=./hack/apis \
+		--input-dirs=./pkg/apis \
+		--output-dirs=./pkg/apis \
 		--output-file-base=zz_generated.deepcopy $(GEN_OUTPUT_BASE)
 
 .PHONY: generate-go-default
 generate-go-default: $(DEEPCOPY_GEN) ## Generate default code
 	$(DEEPCOPY_GEN) \
-		--input-dirs=./hack/apis \
-		--output-dirs=./hack/apis \
+		--input-dirs=./pkg/apis \
+		--output-dirs=./pkg/apis \
 		--output-file-base=zz_generated.default $(GEN_OUTPUT_BASE)
 
 .PHONY: generate-go-informer
 generate-go-informer: $(INFORMER_GEN) ## Generate informer code
 	$(INFORMER_GEN) \
-		--input-dirs=./hack/apis \
-		--output-dirs=./hack/apis \
+		--input-dirs=./pkg/apis \
+		--output-dirs=./pkg/apis \
 		--output-file-base=zz_generated.informer $(GEN_OUTPUT_BASE)
 
 .PHONY: generate-go-lister
 generate-go-lister: $(LISTER_GEN) ## Generate lister code
 	$(LISTER_GEN) \
-		--input-dirs=./hack/apis \
-		--output-dirs=./hack/apis \
+		--input-dirs=./pkg/apis \
+		--output-dirs=./pkg/apis \
 		--output-file-base=zz_generated.lister $(GEN_OUTPUT_BASE)
 
 ## --------------------------------------

@@ -1,4 +1,4 @@
-package festival
+package shadow
 
 import (
 	"context"

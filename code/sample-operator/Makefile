@@ -11,6 +11,7 @@ ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 BIN_DIR := bin
 TOOLS_DIR := hack/tools
 TOOLS_BIN_DIR := $(TOOLS_DIR)/$(BIN_DIR)
+GEN_OUTPUT_BASE := --output-base=$(ROOT_DIR)
 
 #
 # Binaries.
@@ -53,20 +54,21 @@ help: # Display this help
 
 .PHONY: generate
 generate: ## Run all generate-manifests, generate-go-deepcopy and generate-go-conversions targets
-	$(MAKE) generate-manifests generate-go-deepcopy
+	$(MAKE) generate-go-deepcopy generate-manifests
 
 .PHONY: generate-manifests
-generate-manifests: $(CONTROLLER_GEN) $(KUSTOMIZE) ## Generate manifests e.g. CRD, RBAC etc. for core
+generate-manifests: $(CONTROLLER_GEN) ## Generate manifests e.g. CRD, RBAC etc. for core
 	$(CONTROLLER_GEN) \
-		paths=./api/... \
+		paths=./pkg/apis/... \
 		crd:crdVersions=v1 \
 		output:crd:dir=./config/crd/bases
-	$(KUSTOMIZE) build config/crd > deploy/crd.yaml
 
 .PHONY: generate-go-deepcopy
-generate-go-deepcopy: $(CONTROLLER_GEN) ## Generate deepcopy go code for core
-	$(CONTROLLER_GEN) \
-		paths=./api/...
+generate-go-deepcopy: $(DEEPCOPY_GEN) ## Generate deepcopy code
+	$(DEEPCOPY_GEN) \
+		--input-dirs=./pkg/apis \
+		--output-dirs=./pkg/apis \
+		--output-file-base=zz_generated.deepcopy $(GEN_OUTPUT_BASE)
 
 ## --------------------------------------
 ## Lint / Verify
