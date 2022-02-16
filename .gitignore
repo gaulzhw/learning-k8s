@@ -17,3 +17,6 @@
 .DS_Store
 .idea
 vendor
+
+bin
+hack/tools/bin
