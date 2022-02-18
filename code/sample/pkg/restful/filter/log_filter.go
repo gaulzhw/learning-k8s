@@ -1,13 +1,13 @@
 package filter
 
 import (
-	"fmt"
+	"log"
 	"net/http"
 )
 
 func WithLogFilter(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		fmt.Println("log...")
+		log.Println("log...")
 		handler.ServeHTTP(w, req)
 	})
 }

@@ -1,7 +1,7 @@
 package cobra
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/rest"
@@ -18,12 +18,12 @@ func NewRootCommand() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("run...")
+			log.Println("run...")
 			return nil
 		},
 		Args: func(cmd *cobra.Command, args []string) error {
 			for _, arg := range args {
-				fmt.Println(arg)
+				log.Println(arg)
 			}
 			return nil
 		},

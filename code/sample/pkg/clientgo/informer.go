@@ -2,7 +2,7 @@ package clientgo
 
 import (
 	"flag"
-	"fmt"
+	"log"
 	"path/filepath"
 	"time"
 
@@ -63,7 +63,7 @@ func StartInformer() {
 	informerFactory.Start(stopper)
 	// 等待所有启动的 Informer 的缓存被同步
 	informerFactory.WaitForCacheSync(stopper)
-	fmt.Println("synced")
+	log.Println("synced")
 
 	// 从本地缓存中获取 default 中的所有 deployment 列表
 	deployments, err := deployLister.Deployments("default").List(labels.Everything())
@@ -71,23 +71,23 @@ func StartInformer() {
 		panic(err)
 	}
 	for idx, deploy := range deployments {
-		fmt.Printf("%d -> %s\\n", idx+1, deploy.Name)
+		log.Printf("%d -> %s\n", idx+1, deploy.Name)
 	}
 	<-stopper
 }
 
 func onAdd(obj interface{}) {
 	deploy := obj.(*v1.Deployment)
-	fmt.Println("add a deployment:", deploy.Name)
+	log.Println("add a deployment:", deploy.Name)
 }
 
 func onUpdate(old, new interface{}) {
 	oldDeploy := old.(*v1.Deployment)
 	newDeploy := new.(*v1.Deployment)
-	fmt.Println("update deployment:", oldDeploy.Name, newDeploy.Name)
+	log.Println("update deployment:", oldDeploy.Name, newDeploy.Name)
 }
 
 func onDelete(obj interface{}) {
 	deploy := obj.(*v1.Deployment)
-	fmt.Println("delete a deployment:", deploy.Name)
+	log.Println("delete a deployment:", deploy.Name)
 }

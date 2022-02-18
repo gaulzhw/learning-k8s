@@ -1,7 +1,7 @@
 package client
 
 import (
-	"fmt"
+	"log"
 	"path/filepath"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -28,7 +28,7 @@ func InitDiscoveryClient() {
 		return
 	}
 
-	fmt.Printf("APIGroup: \n\n %v\n\n\n\n", apiGroup)
+	log.Printf("APIGroup: %v", apiGroup)
 
 	for _, apiResourceList := range apiResourceLists {
 		groupVersionStr := apiResourceList.GroupVersion
@@ -37,11 +37,11 @@ func InitDiscoveryClient() {
 			return
 		}
 
-		fmt.Println("*******************************************************")
-		fmt.Printf("GV string [%v]\nGV struct [%#v]\nresources: \n\n", groupVersionStr, gv)
+		log.Println("*******************************************************")
+		log.Printf("GV string [%v]\nGV struct [%#v]\nresources: \n\n", groupVersionStr, gv)
 
 		for _, singleResource := range apiResourceList.APIResources {
-			fmt.Printf("%v\n", singleResource.Name)
+			log.Printf("%v\n", singleResource.Name)
 		}
 	}
 }

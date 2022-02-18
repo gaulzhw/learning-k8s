@@ -2,7 +2,7 @@ package client
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"path/filepath"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,9 +29,9 @@ func InitClientSet() {
 		return
 	}
 
-	fmt.Printf("namespace\t status\t\t name\n")
+	log.Printf("namespace\t status\t\t name\n")
 
 	for _, pod := range pods.Items {
-		fmt.Printf("%v\t %v\t %v\n", pod.Namespace, pod.Status.Phase, pod.Name)
+		log.Printf("%v\t %v\t %v\n", pod.Namespace, pod.Status.Phase, pod.Name)
 	}
 }

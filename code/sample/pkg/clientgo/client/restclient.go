@@ -2,7 +2,7 @@ package client
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"path/filepath"
 
 	corev1 "k8s.io/api/core/v1"
@@ -45,9 +45,9 @@ func InitRestClient() {
 		return
 	}
 
-	fmt.Printf("namespace\t status\t\t name\n")
+	log.Printf("namespace\t status\t\t name\n")
 
 	for _, d := range result.Items {
-		fmt.Printf("%v\t %v\t %v\n", d.Namespace, d.Status.Phase, d.Name)
+		log.Printf("%v\t %v\t %v\n", d.Namespace, d.Status.Phase, d.Name)
 	}
 }

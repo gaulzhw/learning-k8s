@@ -2,7 +2,7 @@ package clientgo
 
 import (
 	"context"
-	"fmt"
+	"log"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -49,7 +49,7 @@ func (c *Controller) SetupWithManager(mgr ctrl.Manager, options controller.Optio
 }
 
 func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
-	fmt.Println(req.NamespacedName)
+	log.Println(req.NamespacedName)
 	return ctrl.Result{}, nil
 }
 

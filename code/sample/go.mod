@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/emicklei/go-restful/v3 v3.7.3
 	github.com/spf13/cobra v1.3.0
+	github.com/wI2L/jsondiff v0.1.1
 	go.etcd.io/etcd/client/v3 v3.5.1
 	k8s.io/api v0.23.3
 	k8s.io/apimachinery v0.23.3

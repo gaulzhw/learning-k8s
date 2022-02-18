@@ -1,13 +1,13 @@
 package restful
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/emicklei/go-restful/v3"
 )
 
 func print(req *restful.Request, resp *restful.Response, chain *restful.FilterChain) {
-	fmt.Printf("[print-filter] %s, %s\n", req.Request.Method, req.Request.URL)
+	log.Printf("[print-filter] %s, %s\n", req.Request.Method, req.Request.URL)
 	chain.ProcessFilter(req, resp)
 }
 
