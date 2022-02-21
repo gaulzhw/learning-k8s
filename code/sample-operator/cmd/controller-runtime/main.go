@@ -11,8 +11,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	appsv1alpha1 "github.com/gaulzhw/learning-k8s/sample-operator/api/v1alpha1"
-	"github.com/gaulzhw/learning-k8s/sample-operator/controllers"
+	appsv1alpha1 "github.com/gaulzhw/learning-k8s/sample-operator/pkg/apis/v1alpha1"
+	"github.com/gaulzhw/learning-k8s/sample-operator/pkg/controllers"
 	//+kubebuilder:scaffold:imports
 )
 

@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	appsv1alpha1 "github.com/gaulzhw/learning-k8s/sample-operator/api/v1alpha1"
+	appsv1alpha1 "github.com/gaulzhw/learning-k8s/sample-operator/pkg/apis/v1alpha1"
 )
 
 // ApplicationReconciler reconciles a Application object
