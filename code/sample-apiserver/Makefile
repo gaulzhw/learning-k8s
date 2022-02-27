@@ -48,6 +48,18 @@ TAG ?= $(shell git rev-parse --abbrev-ref HEAD | grep -v HEAD || git describe --
 # Allow overriding the imagePullPolicy
 PULL_POLICY ?= Always
 
+#
+# Git information.
+#
+# Set image tag from branch or tag
+# TAG ?= $(shell git rev-parse --abbrev-ref HEAD | grep -v HEAD || git describe --tags || git  rev-parse HEAD)
+GIT_VERSION ?= $(shell git describe --tags --dirty)
+GIT_COMMIT_HASH ?= $(shell git rev-parse HEAD)
+BUILDDATE ?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
+LDFLAGS ?= "-X github.com/gaulzhw/learning-k8s/sample-apiserver/pkg/version.gitVersion=$(GIT_VERSION) \
+	-X github.com/gaulzhw/learning-k8s/sample-apiserver/pkg/version.gitCommit=$(GIT_COMMIT_HASH) \
+	-X github.com/gaulzhw/learning-k8s/sample-apiserver/pkg/version.buildDate=$(BUILDDATE)"
+
 help: # Display this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n\nTargets:\n"} /^[0-9A-Za-z_-]+:.*?##/ { printf "  \033[36m%-45s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
@@ -58,57 +70,46 @@ help: # Display this help
 ##@ generate:
 
 .PHONY: generate
-generate: ## Run all generate-xxx targes
-	$(MAKE) generate-go-client generate-go-conversion generate-go-deepcopy generate-go-default generate-go-informer generate-go-lister generate-manifests
+generate: ## Run all generate-xxx targets
+	$(MAKE) generate-go-deepcopy generate-go-client generate-go-lister generate-go-informer generate-manifests
 
 .PHONY: generate-manifests
-generate-manifests: $(CONTROLLER_GEN) ## Generate manifests e.g. CRD, RBAC etc. for core
+generate-manifests: $(CONTROLLER_GEN) ## Generate manifests e.g. CRD, RBAC etc
 	$(CONTROLLER_GEN) \
 		paths=./pkg/apis/... \
 		crd:crdVersions=v1 \
-		output:crd:dir=./config/crd/bases
+		output:crd:dir=deploy/crd
+
+.PHONY: generate-go-deepcopy
+generate-go-deepcopy: $(CONTROLLER_GEN) ## Generate deepcopy code
+	$(CONTROLLER_GEN) \
+		object:headerFile=hack/boilerplate.go.txt \
+		paths=./pkg/apis/...
 
 .PHONY: generate-go-client
 generate-go-client: $(CLIENT_GEN) ## Generate client code
 	$(CLIENT_GEN) \
-		--input-dirs=./pkg/apis \
-		--output-dirs=./pkg/apis \
-		--output-file-base=zz_generated.client $(GEN_OUTPUT_BASE)
-
-.PHONY: generate-go-conversion
-generate-go-conversion: $(CONVERSION_GEN) ## Generate conversion code
-	$(CONVERSION_GEN) \
-		--input-dirs=./pkg/apis \
-		--output-dirs=./pkg/apis \
-		--output-file-base=zz_generated.conversion $(GEN_OUTPUT_BASE)
-
-.PHONY: generate-go-deepcopy
-generate-go-deepcopy: $(DEEPCOPY_GEN) ## Generate deepcopy code
-	$(DEEPCOPY_GEN) \
-		--input-dirs=./pkg/apis \
-		--output-dirs=./pkg/apis \
-		--output-file-base=zz_generated.deepcopy $(GEN_OUTPUT_BASE)
-
-.PHONY: generate-go-default
-generate-go-default: $(DEEPCOPY_GEN) ## Generate default code
-	$(DEEPCOPY_GEN) \
-		--input-dirs=./pkg/apis \
-		--output-dirs=./pkg/apis \
-		--output-file-base=zz_generated.default $(GEN_OUTPUT_BASE)
-
-.PHONY: generate-go-informer
-generate-go-informer: $(INFORMER_GEN) ## Generate informer code
-	$(INFORMER_GEN) \
-		--input-dirs=./pkg/apis \
-		--output-dirs=./pkg/apis \
-		--output-file-base=zz_generated.informer $(GEN_OUTPUT_BASE)
+		--go-header-file=hack/boilerplate.go.txt \
+		--input-base="" \
+		--input=github.com/gaulzhw/learning-k8s/sample-apiserver/pkg/apis/apps/v1alpha1 \
+		--clientset-name=versioned \
+		--output-package=github.com/gaulzhw/learning-k8s/sample-apiserver/pkg/generated/clientset
 
 .PHONY: generate-go-lister
 generate-go-lister: $(LISTER_GEN) ## Generate lister code
 	$(LISTER_GEN) \
-		--input-dirs=./pkg/apis \
-		--output-dirs=./pkg/apis \
-		--output-file-base=zz_generated.lister $(GEN_OUTPUT_BASE)
+		--go-header-file=hack/boilerplate.go.txt \
+		--input-dirs=github.com/gaulzhw/learning-k8s/sample-apiserver/pkg/apis/apps/v1alpha1 \
+		--output-package=github.com/gaulzhw/learning-k8s/sample-apiserver/pkg/generated/listers
+
+.PHONY: generate-go-informer
+generate-go-informer: $(INFORMER_GEN) ## Generate informer code
+	$(INFORMER_GEN) \
+		--go-header-file=hack/boilerplate.go.txt \
+		--input-dirs=github.com/gaulzhw/learning-k8s/sample-apiserver/pkg/apis/apps/v1alpha1 \
+		--versioned-clientset-package=github.com/gaulzhw/learning-k8s/sample-apiserver/pkg/generated/clientset/versioned \
+		--listers-package=github.com/gaulzhw/learning-k8s/sample-apiserver/pkg/generated/listers \
+		--output-package=github.com/gaulzhw/learning-k8s/sample-apiserver/pkg/generated/informers
 
 ## --------------------------------------
 ## Lint / Verify
@@ -123,25 +124,7 @@ modules: ## Run go mod tidy to ensure modules are up to date
 
 .PHONY: lint
 lint: $(GOLANGCI_LINT) ## Lint the codebase
-	$(GOLANGCI_LINT) run -v
-
-.PHONY: lint-fix
-lint-fix: $(GOLANGCI_LINT) ## Lint the codebase and run auto-fixers if supported by the linter
-	GOLANGCI_LINT_EXTRA_ARGS=--fix $(MAKE) lint
-
-.PHONY: verify-modules
-verify-modules: modules  ## Verify go modules are up to date
-	@if (find . -name 'go.mod' | xargs -n1 grep -q -i 'k8s.io/client-go.*+incompatible'); then \
-		find . -name "go.mod" -exec grep -i 'k8s.io/client-go.*+incompatible' {} \; -print; \
-		echo "go module contains an incompatible client-go version"; exit 1; \
-	fi
-
-.PHONY: verify-gen
-verify-gen: generate  ## Verfiy go generated files are up to date
-	@if !(git diff --quiet HEAD); then \
-		git diff; \
-		echo "generated files are out of date, run make generate"; exit 1; \
-	fi
+	GO111MODULE=off $(GOLANGCI_LINT) run -v
 
 ## --------------------------------------
 ## Binaries
@@ -151,7 +134,7 @@ verify-gen: generate  ## Verfiy go generated files are up to date
 
 .PHONY: docker-build
 docker-build: ## Build the docker image for core controller manager
-	docker build --build-arg builder_image=$(GO_CONTAINER_IMAGE) . -t $(CONTROLLER_IMG):$(TAG)
+	docker build --build-arg builder_image=$(GO_CONTAINER_IMAGE) --build-arg LDFLAGS=$(LDFLAGS) . -t $(CONTROLLER_IMG):$(TAG)
 	$(MAKE) set-manifest-image MANIFEST_IMG=$(CONTROLLER_IMG) MANIFEST_TAG=$(TAG) TARGET_RESOURCE="./config/default/manager_image_patch.yaml"
 	$(MAKE) set-manifest-pull-policy TARGET_RESOURCE="./config/default/manager_pull_policy.yaml"
 
