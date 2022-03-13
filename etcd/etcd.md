@@ -2,6 +2,35 @@
 
 
 
+## 整体架构
+
+- 项目结构
+
+| 包名                                 | 用途                             |
+| ------------------------------------ | -------------------------------- |
+| auth                                 | 访问权限                         |
+| client/clientv3                      | go 语言客户端 SDK                |
+| contrib                              | raftexample 实现                 |
+| embed                                | 主要是 etcd 的 config            |
+| etcdmain                             | 入口程序                         |
+| etcdctl                              | 命令行客户端实现                 |
+| etcdserver                           | server 主要的包                  |
+| functional/hack                      | CMD、Dockerfile 之类的杂项       |
+| integration                          | 和 etcd 集群相关                 |
+| lease                                | 租约相关                         |
+| mvcc                                 | etcd 的底层存储，包含 watch 实现 |
+| pkg                                  | etcd 使用的工具集合              |
+| proxy                                | etcd 使用的工具集合              |
+| raft                                 | raft 算法模块                    |
+| wal                                  | 日志模块                         |
+| scripts/security/tests/tools/version | 脚本、测试等相关内容             |
+
+- 架构图
+
+![architecture](/Users/gao/Documents/workspace/go/src/github.com/gaulzhw/learning_k8s/etcd/img/architecture.png)
+
+
+
 ## etcd 概念
 
 ### 术语
@@ -128,6 +157,96 @@ etcdctl 支持的命令大体上分为数据库操作和非数据库操作两类
 | --password=""                      | 认证的密码，当该选项开启，--user 参数中不要包含密码          |
 | --user=""                          | username[:password] 的形式                                   |
 | -w, --write-out="simple"           | 输出内容的格式（Fields、Json、Protobuf、Simple、Talbe，其中 Simple 为原始信息；Json 为使用 Json 格式解码，易读性高） |
+
+
+
+## 网关、代理
+
+### etcd 网关
+
+- 如果同一服务器上的多个应用程序访问相同的 etcd 集群，每个应用程序仍需要知道 etcd 集群的广播的客户端端点地址
+- 使用 etcd 网关作为稳定的本地端点，对于客户端应用程序来说不会感知到集群实例的变化
+- 发生 etcd 集群实例的变更时，只需要网关更新其端点
+
+启动 etcd 网关，以通过 etcd gateway 命令代理静态端点
+
+```shell
+$ etcd gateway start --endpoints=http://127.0.0.1:2379
+```
+
+### gRPC-gateway
+
+gRPC-gateway：为非 gRPC 的客户端提供 HTTP 接口
+
+```shell
+$ curl -L http://localhost:2379/v3/kv/put -X POST -d '{"key": "k1", "value": "v1"}'
+```
+
+### gRPC Proxy
+
+gRPC Proxy 是在 gRPC 层(L7)运行的无状态 etcd 反向代理，旨在减少核心 etcd 集群上的总处理负载
+
+使用 etcd grpc-proxy start 的命令开启 etcd 的 gRPC proxy 模式
+
+```shell
+$ etcd grpc-proxy start --endpoints=http://127.0.0.1:2379 --listen-addr=127.0.0.1:12379 --resolver-prefix="__grpc_proxy_endpoint"
+```
+
+
+
+## 重配置操作
+
+集群动态调整场景：
+
+- 机器升级
+- 修改集群大小
+- 替换故障机器
+- 重启集群
+
+
+
+## etcd 性能
+
+### CPU
+
+如果 etcd 集群负载的客户端达到数千个，每秒的请求数可能是成千上万个，则需要增加 CPU 配置，通常需要 8-16 个专用内核
+
+### Memory
+
+etcd 对内存的需求不高，etcd 服务器内存占用相对较小，对于具有数千个 watch 监视器或者数百万键值对的大型部署，需要相应地将内存扩展到 16GB 以上
+
+### Disk
+
+磁盘 IO 速度是影响 etcd 集群性能和稳定性的最关键因素，大多数 etcd 集群成员须将请求写入磁盘，etcd 还将以增量的方式将检查点写入磁盘中，以便截断该日志，使用基准测试工具判断磁盘的速度是否适合 etcd
+
+推荐的服务器配置
+
+- etcd 对磁盘写入延迟非常敏感，通常需要 7200RPM 转速的磁盘
+- 对于负载较重的集群，建议使用 SSD 固态硬盘
+- 一般使用 SSD 作为 etcd 的存储
+- 由于 etcd 的一致复制已经获得高可用性，至少三个集群成员不需要 RAID 的镜像和磁盘阵列
+
+### Network
+
+多个成员的 etcd 集群部署得益于快速可靠的网络，需要网络保证低延迟和高带宽
+
+具有分区中断的不可靠网络将导致 etcd 集群的可用性降低
+
+还可以通过规避在多个数据中心部署 etcd 成员的方式来减少网络开销，单个数据中心内部署 etcd 成员可以避免延迟开销，提升 etcd 集群的可用性
+
+### 调优
+
+- 调整 ionice，提升 etcd 磁盘读写
+- 调整 tc 策略，提升 etcd 网络
+  - 2380 端口的命令优先级高于 2379 端口
+- 默认 10000 次更改才会保存快照，如果 etcd 的内存和磁盘使用率过高，可以降低这个阈值 (--snaptshot-count)
+- 时间参数
+  - 心跳间隔，节点之间网络往返时间，默认是 100ms (--heatbeat-interval)
+    - 推荐设置为节点之间的最大 RTT
+    - 一般可设置为 RTT 的 0.5-1.5 倍
+    - 过长的心跳间隔也会延长选举超时时间
+    - 测量 RTT 最简单方法就是用 PING
+  - 选举超时，默认是 1000ms (--election-timeout)
 
 
 
