@@ -348,6 +348,222 @@ RES: 2450431 5279697 Rescheduling interrupts
 
 
 
+### 3. CPU 使用率
+
+为了维护 CPU 时间，linux 通过事先定义的节拍率（内核中表示为 Hz），触发时间中断，并使用全局变量 Jiffies 记录了开机以来的节拍数。每发生一次时间中断，Jiffies 的值就加 1。
+
+节拍率 Hz 是内核的可配选项，可以设置为 100、250、1000 等。不同的系统可能设置不同数值，可以通过查询 /boot/config 内核选项来查看它的配置值。
+
+```shell
+$ grep 'CONFIG_HZ=' /boot/config-$(uname -r)
+CONFIG_HZ=250
+```
+
+为了方便用户空间程序，内核还提供了一个用户空间节拍率 USER_HZ，它总是固定为 100，也就是 1/100 秒。用户空间程序并不需要关心内核中 Hz 被设置成了多少，因为它看到的总是固定值 USER_HZ。
+
+linux 通过 /proc 虚拟文件系统，向用户空间提供了系统内部状态的信息，而 /proc/stat 提供的就是系统的 CPU 和任务统计信息。
+
+```shell
+# 只保留各个CPU的数据
+$ cat /proc/stat | grep ^cpu
+cpu  280580 7407 286084 172900810 83602 0 583 0 0 0
+cpu0 144745 4181 176701  86423902 52076 0 301 0 0 0
+cpu1 135834 3226 109383  86476907 31525 0 282 0 0 0
+```
+
+每列数值表示不同场景下 CPU 的累加节拍数，它的单位是 USER_HZ，也就是 10ms（1/100 秒），就是不同场景下的 CPU 时间。
+
+- user（缩写为 us），代表用户态 CPU 时间。它不包括下面的 nice 时间，但包括了 guest 时间。
+- nice（缩写为 ni），代表低优先级用户态 CPU 时间，也就是进程的 nice 值被调整为 1-19 之间时的 CPU 时间。nice 可取值范围是 -20 到 19，数值越大，优先级反而越低。
+- system（缩写为 sys），代表内核态 CPU 时间。
+- idle（缩写为 id），代表空闲时间。它不包括等待 IO 的时间（iowait）。
+- iowait（缩写为 wa），代表等待 IO 的 CPU 时间。
+- irq（缩写为 hi），代表处理硬中断的 CPU 时间。
+- softirq（缩写为 si），代表处理软中断的 CPU 时间。
+- steal（缩写为 st），代表当系统运行在虚拟机中的时候，被其他虚拟机占用的 CPU 时间。
+- guest（缩写为 guest），代表通过虚拟化运行其他操作系统的时间，也就是运行虚拟机的 CPU 时间。
+- guest_nice（缩写为 gnice），代表以低优先级运行虚拟机的时间。
+
+CPU 使用率，就是除了空闲时间外的其他时间占总 CPU 时间的百分比。
+
+性能分析工具给出的都是间隔一段时间的平均 CPU 使用率，所以要注意间隔时间的设置，特别是用多个工具对比分析时，一定要保证用的是相同的间隔时间。
+
+
+
+查看 CPU 使用率
+
+- top，显示了系统总体的 CPU 和内存使用情况，以及各个进程的资源使用情况
+- ps，只显示了每个进程的资源使用情况
+
+```shell
+# 默认每3秒刷新一次
+$ top
+top - 11:58:59 up 9 days, 22:47, 1 user, load average: 0.03, 0.02, 0.00
+Tasks: 123 total, 1 running, 72 sleeping, 0 stopped, 0 zombie
+%Cpu(s): 0.3 us, 0.3 sy, 0.0 ni, 99.3 id, 0.0 wa, 0.0 hi, 0.0 si, 0.0 st
+KiB Mem : 8169348 total, 5606884 free, 334640 used, 2227824 buff/cache
+KiB Swap:       0 total,       0 free,      0 used. 7497908 avail Mem
+
+PID USER PR  NI  VIRT  RES  SHR S %CPU %MEM   TIME+      COMMAND
+  1 root 20   0 78088 9288 6696 S  0.0  0.1 0:16.83      systemd
+  2 root 20   0     0    0    0 S  0.0  0.0 0:00.05     kthreadd
+  4 root  0 -20     0    0    0 I  0.0  0.0 0:00.00 kworker/0:0H
+...
+```
+
+
+
+pidstat，可以查看每个进程 CPU 使用情况
+
+- 用户态 CPU 使用率（%usr）
+- 内核态 CPU 使用率（%system）
+- 运行虚拟机 CPU 使用率（%guest）
+- 等待 CPU 使用率（%wait）
+- 总的 CPU 使用率（%CPU）
+
+```shell
+# 每隔1秒输出一组数据，共输出5组
+$ pidstat 1 5
+15:56:02 UID   PID %usr %system %guest %wait %CPU CPU Command
+15:56:03   0 15006 0.00    0.99   0.00  0.00 0.99   1 dockerd
+
+...
+
+Average: UID   PID %usr %system %guest %wait %CPU CPU Command
+Average:   0 15006 0.00    0.99   0.00  0.00 0.99   - dockerd
+```
+
+
+
+CPU 使用率过高分析：使用 perf 分析 CPU 性能问题
+
+1. perf top，类似于 top，能够实时显示占用 CPU 时钟最多的函数或者指令，可以用来查找热点函数
+
+```shell
+$ perf top
+Samples: 833 of event 'cpu-clock', Event count (approx.): 97742399
+Overhead Shared Object Symbol
+   7.28%          perf [.] 0x00000000001f78a4
+   4.72%      [kernel] [k] vsnprintf
+   4.32%      [kernel] [k] module_get_kallsym
+   3.65%      [kernel] [k] _raw_spin_unlock_irqrestore
+...
+```
+
+第一行包括三个数据，分别是采样数、事件类型和事件总数量。
+
+- Overhead，是该符号的性能事件在所有采样中的比例，用百分比来表示
+- Shared，是该函数或者指令所在的动态共享对象，如内核、进程名、动态链接库名、内核模块名等
+- Object，是动态共享对象的类型。[.]表示用户空间的可执行程序、或者动态链接库，[k]表示内核空间
+- Symbol，是符号名，也就是函数名。当函数名未知时，用十六进制的地址来表示。
+
+2. perf record、perf report
+
+perf top 虽然实时展示了系统的性能信息，但它的缺点时并不保存数据，也就无法用于离线或者后续的分析。perf record 则提供了保存数据的功能，保存后的数据需要用 perf report 解析展示。
+
+```shell
+$ perf record # 按Ctrl+C终止采样
+[ perf record: Woken up 1 times to write data ]
+[ perf record: Captured and wrote 0.452 MB perf.data (6093 samples) ]
+
+$ perf report # 展示类似于perf top的报告
+```
+
+在实际使用中，还可以加上 -g 参数，开启调用关系的采样，方便根据调用链来分析性能问题。
+
+
+
+#### 案例
+
+##### 场景一
+
+在第一个终端执行命令来运行 Nginx、PHP
+
+```shell
+$ docker run --name nginx -p 10000:80 -itd feisky/nginx
+$ docker run --name phpfpm -itd --network container:nginx feisky/php-fpm
+```
+
+
+
+在第二个终端使用 curl 访问 Nginx
+
+```shell
+# 192.168.0.10是第一台虚拟机的IP地址
+$ curl http://192.168.0.10:10000/
+It works!
+```
+
+
+
+在第二个终端运行 ab 命令
+
+```shell
+# 并发10个请求测试Nginx性能，总共测试100个请求
+$ ab -c 10 -n 100 http://192.168.0.10:10000/
+This is ApacheBench, Version 2.3 <$Revision: 1706008 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd,
+...
+Requests per second: 11.63 [#/sec] (mean)
+Time per request: 859.942 [ms] (mean)
+...
+```
+
+
+
+继续在第二个终端运行 ab 命令
+
+```shell
+$ ab -c 10 -n 10000 http://192.168.0.10:10000/
+```
+
+
+
+回到第一个终端运行 top，并按下 1，切换到每个 CPU 的使用率
+
+```shell
+$ top
+...
+%Cpu0 : 98.7 us, 1.3 sy, 0.0 ni, 0.0 id, 0.0 wa, 0.0 hi, 0.0 si, 0.0 st
+%Cpu1 : 99.3 us, 0.7 sy, 0.0 ni, 0.0 id, 0.0 wa, 0.0 hi, 0.0 si, 0.0 st
+...
+  PID   USER PR NI   VIRT   RES  SHR S %CPU %MEM   TIME+ COMMAND
+21514 daemon 20  0 336696 16384 8712 R 41.9  0.2 0:06.00 php-fpm
+21513 daemon 20  0 336696 13244 5572 R 40.2  0.2 0:06.08 php-fpm
+21515 daemon 20  0 336696 16384 8712 R 40.2  0.2 0:05.67 php-fpm
+21512 daemon 20  0 336696 13244 5572 R 39.9  0.2 0:05.87 php-fpm
+21516 daemon 20  0 336696 16384 8712 R 35.9  0.2 0:05.61 php-fpm
+```
+
+可以确认，正是 php-fpm 进程导致 CPU 使用率升高。
+
+
+
+如何知道是 php-fpm 的哪个函数导致 CPU 使用率升高呢？
+
+在第一个终端运行 perf 命令
+
+```shell
+# -g开启调用关系分析，-p指定php-fpm的进程号21515
+$ perf top -g -p 21515
+```
+
+按方向键切换到 php-fpm，再按下回车键展开调用关系，发现调用关系最终到了 sqrt 和 add_function，分析定位问题。
+
+
+
+##### 场景二
+
+
+
+### 4. 不可中断进程、僵尸进程
+
+
+
+### 5. linux 软中断
+
+
+
 ## Memory
 
 
