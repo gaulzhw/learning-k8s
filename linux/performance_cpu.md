@@ -737,6 +737,195 @@ stress 30407 30405   0 /usr/local/bin/stress -t 1 -d 1
 
 ### 案例
 
+dstat 可以同时观察系统的 CPU、磁盘 IO、网络以及内存使用情况。
+
+
+
+运行案例
+
+```shell
+$ docker run --privileged --name=app -itd feisky/app:iowait
+```
+
+
+
+ps 查看状态
+
+```shell
+$ ps aux | grep /app
+root 4009 0.0 0.0  4376  1008 pts/0 Ss+ 05:51 0:00 /app
+root 4287 0.6 0.4 37280 33660 pts/0  D+ 05:54 0:00 /app
+root 4288 0.6 0.4 37280 33668 pts/0  D+ 05:54 0:00 /app
+```
+
+多个 app 进程已经启动，并且它们的状态分别是 Ss+ 和 D+。
+
+- "S" 表示可中断睡眠状态
+- "D" 表示不可中断睡眠状态
+- "s" 表示这个进程是一个会话的领导进程
+- "+" 表示前台进程组
+  - 进程组表示一组相互关联的进程，比如每个子进程都是父进程所在组的成员
+  - 会话指共享同一个控制终端的一个或多个进程组
+
+
+
+top 分析系统的资源使用情况
+
+```shell
+# 按下数字 1 切换到所有 CPU 的使用情况，观察一会儿按 Ctrl+C 结束
+$ top
+top - 05:56:23 up 17 days, 16:45, 2 users, load average: 2.00, 1.68, 1.39
+Tasks: 247 total, 1 running, 79 sleeping, 0 stopped, 115 zombie
+%Cpu0 : 0.0 us, 0.7 sy, 0.0 ni, 38.9 id, 60.5 wa, 0.0 hi, 0.0 si, 0.0 st
+%Cpu1 : 0.0 us, 0.7 sy, 0.0 ni, 4.7 id, 94.6 wa, 0.0 hi, 0.0 si, 0.0 st
+...
+ PID USER PR NI   VIRT   RES  SHR S %CPU %MEM   TIME+ COMMAND
+4340 root 20  0  44676  4048 3432 R  0.3  0.0 0:00.05 top
+4345 root 20  0  37280 33624  860 D  0.3  0.0 0:00.01 app
+4344 root 20  0  37280 33624  860 D  0.3  0.4 0:00.01 app
+   1 root 20  0 160072  9416 6752 S  0.0  0.1 0:38.59 systemd
+...
+```
+
+可以问题：
+
+- 第一行的平均负载（Load Average），过去 1 分钟、5 分钟和 15 分钟内的平均负载在依次减小，说明平均负载正在升高；而 1 分钟内的平均负载已经达到系统的 CPU 个数，说明系统很可能已经有了性能瓶颈
+- 第二行的 Tasks，有 1 个正在运行的进程，但僵尸进程比较多，而且还在不停增加，说明有子进程在退出时没被清理
+- 两个 CPU 的使用率，用户 CPU 和系统 CPU 都不高，但 iowait 分别时 60.5% 和 94.6%
+- 每个进程的情况，CPU 使用率最高的进程只有 0.3%，但有两个进程处于 D 状态，它们可能在等待 IO
+
+
+
+明确两个问题：
+
+- iowait 太高了，导致系统的平均负载升高，甚至达到了系统 CPU 的个数
+- 僵尸进程在不断增加，说明有程序没能正确处理子进程的资源
+
+
+
+iowait 分析
+
+dstat 可以同时查看 CPU 和 IO
+
+```shell
+# 间隔1秒输出10组数据
+$ dstat 1 10
+You did not select any stats, using -cdngy by default.
+--total-cpu-usage--   -dsk/total-   -net/total-   ---paging--   ---system--
+usr sys idl wai stl |  read writ  |  recv send  |   in  out   |  int  csw
+  0   0  96   4   0 | 1219k 408k  |     0    0  |    0    0   |   42  885
+  0   0   2  98   0 |   34M    0  |  198B 790B  |    0    0   |   42  138
+  0   0   0 100   0 |   34M    0  |   66B 342B  |    0    0   |   42  135
+  0   0  84  16   0 | 5633k    0  |   66B 342B  |    0    0   |   52  177
+  0   3  39  58   0 |   22M    0  |   66B 342B  |    0    0   |   43  144
+  0   0   0 100   0 |   34M    0  |  200B 450B  |    0    0   |   46  147
+  0   0   2  98   0 |   34M    0  |   66B 342B  |    0    0   |   45  134
+  0   0   0 100   0 |   34M    0  |   66B 342B  |    0    0   |   39  131
+  0   0  83  17   0 | 5633k    0  |   66B 342B  |    0    0   |   46  168
+  0   3  39  59   0 |   22M    0  |   66B 342B  |    0    0   |   37  134
+```
+
+从 dstat 的输出可以看到，每当 iowait 升高（wait）时，磁盘的读请求（read）都会很大，说明 iowait 的升高跟磁盘的读请求有关，很可能是磁盘读导致的。
+
+
+
+运行 top 命令，观察 D 状态的进程
+
+```shell
+# 观察一会儿按 Ctrl+C 结束
+$ top
+...
+ PID USER PR NI  VIRT   RES  SHR S %CPU %MEM   TIME+ COMMAND
+4340 root 20  0 44676  4048 3432 R  0.3  0.0 0:00.05 top
+4345 root 20  0 37280 33624  860 D  0.3  0.0 0:00.01 app
+4344 root 20  0 37280 33624  860 D  0.3  0.4 0:00.01 app
+...
+```
+
+
+
+pidstat 加上 -d 参数查看进程的读写情况
+
+```shell
+# -d 展示 I/O 统计数据，-p 指定进程号，间隔 1 秒输出 3 组数据
+$ pidstat -d -p 4344 1 3
+06:38:50 UID  PID kB_rd/s kB_wr/s kB_ccwr/s iodelay Command
+06:38:51   0 4344    0.00    0.00      0.00       0 app
+06:38:52   0 4344    0.00    0.00      0.00       0 app
+06:38:53   0 4344    0.00    0.00      0.00       0 app
+```
+
+- kB_rd 表示每秒读的 KB 数
+- kB_wr 表示每秒写的 KB 数
+- iodelay 表示 IO 的延迟（单位是时钟周期），它们都是 0 表示此事没有任何的读写，说明问题不是 4344 进程导致的
+
+
+
+查看所有进程的读写情况
+
+```shell
+# 间隔 1 秒输出多组数据 (这里是 20 组)
+$ pidstat -d 1 20
+...
+06:48:46 UID  PID  kB_rd/s kB_wr/s kB_ccwr/s iodelay Command
+06:48:47   0 4615     0.00    0.00      0.00       1 kworker/u4:1
+06:48:47   0 6080 32768.00    0.00      0.00     170 app
+06:48:47   0 6081 32768.00    0.00      0.00     184 app
+
+06:48:47 UID  PID kB_rd/s kB_wr/s kB_ccwr/s iodelay Command
+06:48:48   0 6080    0.00    0.00      0.00     110 app
+
+06:48:48 UID  PID kB_rd/s kB_wr/s kB_ccwr/s iodelay Command
+06:48:49   0 6081    0.00    0.00      0.00     191 app
+
+06:48:49 UID PID kB_rd/s kB_wr/s kB_ccwr/s iodelay Command
+
+06:48:50 UID  PID  kB_rd/s kB_wr/s kB_ccwr/s iodelay Command
+06:48:51   0 6082 32768.00    0.00      0.00       0 app
+06:48:51   0 6083 32768.00    0.00      0.00       0 app
+
+06:48:51 UID  PID  kB_rd/s kB_wr/s kB_ccwr/s iodelay Command
+06:48:52   0 6082 32768.00    0.00      0.00     184 app
+06:48:52   0 6083 32768.00    0.00      0.00     175 app
+
+06:48:52 UID  PID kB_rd/s kB_wr/s kB_ccwr/s iodelay Command
+06:48:53   0 6083    0.00    0.00      0.00     105 app
+...
+```
+
+的确是 app 进程在进行磁盘读，并且每秒读的数据有 32MB。
+
+
+
+strace 跟踪进程系统调用
+
+```shell
+$ strace -p 6082
+strace: attach: ptrace(PTRACE_SEIZE, 6082): Operation not permitted
+```
+
+
+
+perf 追查
+
+```shell
+$ perf record -g
+$ perf report
+```
+
+根据调用关系，发现 app 在通过系统调用 sys_read() 读取数据，并且从 new_sync_read 和 blkdev_direct_IO 看出进程正在对磁盘进行直接读，也就是绕过了系统缓存，每个读请求都会从磁盘直接读，这就可以解释 iowait 升高的原因。
+
+直接读写磁盘，对 IO 敏感型应用（比如数据库系统）是很友好的，可以在应用中直接控制磁盘的读写。但在大部分情况下，最好还是通过系统缓存来优化磁盘 IO。
+
+
+
+### 小结
+
+进程状态包括：运行（R）、空闲（I）、不可中断睡眠（D）、可中断睡眠（S）、僵尸（Z）、暂停（T）
+
+- 不可中断状态，表示进程正在跟硬件交互，为了保护进程数据和硬件的一致性，系统不允许其他进程或中断打断这个进程。进程长时间处于不可中断状态，通常表示系统有 IO 性能问题。
+- 僵尸进程表示进程已经退出，但它的父进程还没有回收子进程占用的资源。短暂的僵尸状态通常不必理会，但长时间处于僵尸进程就应该注意了，可能有应用程序没有正常处理子进程的退出。
+
 
 
 ## 5. linux 软中断
