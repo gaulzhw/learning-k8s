@@ -338,3 +338,178 @@ DDD 往往应用于系统增删改的业务场景中
 支持 DDD 与微服务的技术中台：
 
 基于整洁架构的思想，将 DDD 底层的聚合操作、仓库与工厂的设计，与微服务的技术框架，以及整洁架构中的适配器，统统封装在技术中台中
+
+
+
+将以往业务系统中可以复用的前台与后台代码剥离个性、提取共性，形成的功用组件
+
+- 业务中台：将抽象的业务组件，做成微服务，各个业务系统都可以使用
+- 技术中台：封装各个业务系统所要采用的技术框架，设计出统一的 API
+- 数据中台：整理各个业务系统的数据，建立数据存储与运算的平台
+
+
+
+![ddd_concern](img/ddd_concern.png)
+
+制定开发规范：
+
+- 要求前端 json 对象的设计，与后台值对象的格式一一对应，MVC 层自动完成转换，只做一个统一 Controller
+
+- Service 要存盘时，可以制作一个 vObj.xml 的配置文件来建立对应关系，单一 DAO
+
+
+
+技术中台落地：
+
+命令与查询职责分离（CQRS）模式，将系统按照职责划分为命令（增删改）与查询两部分
+
+- 所有命令部分的增删改操作，应当采用领域驱动设计的思想进行软件设计
+
+- 所有的查询功能应当采用事务脚本模式（Transaction Script），即直接通过 SQL 语句进行查询
+
+
+
+## 支持快速交付的技术中台
+
+### 单 Controller 设计
+
+前端访问 OrmController，http://localhost:9003/orm/{bean}/{method}
+
+bean：配置在 Spring 中的 bean.id
+
+method：bean 中需要调用的方法
+
+- 如果要调用的方法有值对象，必须将值对象放在方法的第一个参数上
+- 如果要调用的方法既有值对象，又有其他参数，则值对象中的属性与其他参数都放在该 json 对象中
+
+
+
+OrmController 的流程设计
+
+- 根据前端参数 bean，从 Spring 中获得 Service
+- 根据前端参数 method，通过反射获得调用方法
+
+- 通过反射获得调用方法的第一个参数作为值对象
+- 通过反射获得值对象的所有属性，从前端 json 中获得对应属性的值，写入值对象
+- 根据前端 json 获得其他参数
+- 将值对象与其他参数，使用反射调用 Service 中的 method 方法
+
+
+
+### 单 DAO 的设计
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<vobjs>
+	<vo class="com.demo.customer.entity.Customer" tableName="Customer">
+  	<property name="id" column="id" isPrimaryKey="true"/>
+    <property name="name" column="name"/>
+    <property name="sex" column="sex"/>
+    <property name="birthday" column="birthday"/>
+    <property name="identification" column="identification"/>
+    <property name="phone_number" column="phone_number"/>
+  </vo>
+</vobjs>
+```
+
+值对象中可以有很多的属性变量，但只有最终作此久化的属性变量才需要配置
+
+每个 Service 在 Spring 中都是统一注入 BasicDao
+
+- 如果要使用 DDD 的功能支持，注入通用仓库 Repository
+- 如果要使用 Redis 缓存，注入 RepositoryWithCache
+
+建议都采用 XML 文件的形式，而不要采用注解
+
+
+
+BasicDao 的设计流程
+
+- 单 DAO 调用 VObjFactory.getVObj(class) 获得配置信息 vObj
+- 根据 vObj.GetTable() 获得对应的表名
+- for (Property prop: vObj.getProperties())
+  - 通过 prop.getColumn 获得值对象对应的字段
+  - 运用反射从值对象中获得所有属性及其对应的值
+  - 通过以上参数形成 SQL 语句
+
+- 通过 SQL 语句执行数据库操作
+
+
+
+### 查询功能的架构设计
+
+查询也是统一 Controller（QueryController）
+
+查询功能的 Service 只有一个，不需要传递 method 参数
+
+进行查询时，前端输入 HTTP 请求，http://localhost:9003/query/{bean}，如：http://localhost:9003/query/customerQry?gender=male&page=1&size=30
+
+
+
+单 Controller 的流程设计
+
+- 从前端获得 bean、page、size、count，以及查询参数
+- 根据 bean 从 Spring 中获得相应的 Service
+- 从前端获得查询参数 json，将其转换成 Map
+- 执行 service.query(map)
+- 执行完查询后，以不同形式返回给前端
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="com.demo.customer.query.dao.CustomerMapper">
+	<sql id="searchParam">
+  	<if test="id !='' and id != null">
+    	and id = #{id}
+    </if>
+  </sql>
+</mapper>
+```
+
+
+
+单 Service 的流程设计
+
+- 将查询参数 map、page、size 传递到 DAO，执行查询 dao.query(map)
+- 在查询的前后增加空方法 beforeQuery、afterQuery 作为 hook，当某业务需要在查询前后进行处理时，通过重载子类去实现
+- 判断前端是否传递 count，如果有则不再求和，否则调用 dao.count() 求和计算“第x页，第y页”
+
+- 将数据打包成 ResultSet 对象返回
+
+```java
+public class ProductQueryServiceImpl extends QueryServiceImpl {
+  @Autowired
+  private SupplierService supplierService;
+
+  @Override
+  protected ResultSet afterQuery(Map<String, Object> params, ResultSet resultSet) {
+    List<Product> list = (List<Product>)resultSet.getData();
+    for(Product product: list) {
+      String supplierId = product.getSupplierId();
+      Supplier supplier = supplierService.loadSupplier(supplierId);
+      product.setSupplier(supplier);
+    }
+    resultSet.setData(list);
+    return resultSet;
+  }
+}
+```
+
+ResultSet：
+
+- 属性 data 是这一页的查询结果集
+- page、size 是分页信息
+- count 是记录总数
+
+
+
+设计一个普通的查询，只需要制作一个 MyBatis 的查询语句配置，在 Spring 配置中制作一个 bean
+
+对于进行查询结果集的补填，可以使用通用程序 AutofillQueryServiceImpl
+
+
+
+## 支持 DDD 的技术中台
+
+
+
+## 支持微服务的技术中台
