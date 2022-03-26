@@ -510,6 +510,217 @@ ResultSet：
 
 ## 支持 DDD 的技术中台
 
+DDD 落地的难点：支持 DDD 的技术架构如何设计
+
+- 不能准确掌握 DDD 的分层架构
+
+- 把程序写得非常乱，频繁地在各种 DTO、DO、PO 进行数据转换
+
+
+
+### 传统 DDD 的架构设计
+
+![ddd_arch_design](img/tradition_ddd_arch_design.png)
+
+DDD 的仓库、工厂的设计介于业务领域层与基础设施层之间
+
+接口在业务领域层，实现在基础设施层
+
+问题：传统 DDD 架构需要在各层次间频繁进行数据结构的转换
+
+![tradition_ddd_dataconvert](img/tradition_ddd_dataconvert.png)
+
+
+
+### 支持 DDD 的技术中台
+
+与通用技术中台相比，只是替换了 DAO，使用通用仓库、工厂做了扩展
+
+- 装载或查询订单时，要查询订单表，补填与订单相关的订单明细与客户信息、商品信息，并装配成一个订单对象
+- 保存订单时，不仅要保存订单表，还要保存订单明细表，并将它们放到同一个事务中
+
+![ddd_support_arch_design](img/ddd_support_arch_design.png)
+
+
+
+装饰者模式：在原有功能的基础上进行透明功能扩展
+
+在注入时，指定不同实现类即可
+
+![ddd_decorator](img/ddd_decorator.png)
+
+
+
+聚合代表在真实世界中的整体与部分的关系
+
+在设计支持领域驱动的技术中台时，应当简化聚合的设计与实现
+
+- 订单与订单明细存在聚合关系
+  - 在 vObj.xml 中建模时，通过 join 标签关联它们，并置 join 标签的 isAggregation=true
+
 
 
 ## 支持微服务的技术中台
+
+需要的能力
+
+- 解决当前微服务架构的技术不确定性
+- 更加容易地将领域驱动设计应用到微服务架构中
+- 解决领域对象在仓库与工厂进行装配时，如何将本地查询替换为远程接口调用，实现微服务间数据装配的问题
+
+
+
+聚合层微服务在调用原子微服务时，调用自己本地的接口，再由这个接口通过加载 Feign 注解，去实现远程调用
+
+原子服务层的微服务在对外开放接口时，由统一的 Controller 开放接口，再由它去调用内部的 Service
+
+
+
+基于领域的设计：先按照领域业务建模，然后基于限界上下文进行微服务拆分
+
+
+
+难题：跨库的数据操作
+
+- 经过微服务拆分，订单有订单数据库，用户有用户数据库
+- 当查询订单，需要补填其对应的用户信息时，调用用户微服务的远程接口，在用户数据库中查询，然后返回给订单微服务
+
+通用 DDD 仓库在执行查询或者装载操作时，先在订单微服务的本地编写一个用户 Service 的 Feign 接口，通过 Feign 接口实现对用户微服务的远程调用
+
+
+
+## 基于事件溯源的设计开发
+
+事件即事实（Event as Fact），即在业务领域中已经发生的事件就是事实。
+
+事件风暴的精髓：精确地抓住业务进行过程中需要存储的关键事实，并围绕着这些事实进行分析设计、领域建模。
+
+
+
+事件溯源：将过去耦合在一起的业务流程有效地解耦，让复杂的业务系统能松耦合地拆分为一个个独立组件，实现组件式的设计开发与插件式的业务变更。
+
+
+
+根据事件风暴中分析识别的领域事件，在每次完成相应工作以后增加一个对领域事件的发布。
+
+- 事件名称
+- 发布者
+- 发布事件
+- 相关的数据
+
+```json
+{
+  "evnet_id": "createOrder",
+  "publisher": "service_order",
+  "publish_time": "2021-01-07",
+  "data": {
+    "id": "300001",
+    "customer_id": "200005",
+    ...
+  }
+}
+```
+
+最好的做法是将每一个领域事件都予以发布。
+
+- 业务系统的发布者只负责事件的发布
+- 订阅者只负责事件的后续操作
+
+
+
+- 事件的发布方在发布事件的时候，需要在数据库中予以记录
+
+- Spring Cloud Stream 是 Spring Cloud 技术框架中一个实现消息驱动的技术框架，它的底层可以支持 RabbitMQ、Kafka 等主流消息队列
+
+- 在 bootstrap.yml 文件中将领域事件与消息队列绑定
+
+  ```yaml
+  spring:
+    rabbitmq:
+      host: xxx.xxx.xxx.xxx
+      port: 5672
+      username: guest
+      password: guest
+    cloud:
+      stream:
+        bindings:
+          createOrder:
+            destination: createOrder
+          modifyOrder:
+            destination: modifyOrder
+  ```
+
+
+
+## Demo 项目
+
+https://github.com/mooodo
+
+- demo-ddd-trade: 基于 DDD 设计的单体应用
+
+- demo-parent: 所有微服务项目的父项目
+- demo-service-eureka: 注册中心
+- demo-service-config: 配置中心
+
+- demo-service-turbine: 断路器监控
+- demo-service-zuul: 服务网关
+- demo-service-parent: 各业务微服务（无数据库访问）的父项目
+
+- demo-service-support: 各业务微服务（无数据库访问）底层技术框架
+- demo-service-customer: 用户管理微服务（无数据库访问）
+- demo-service-product: 产品管理微服务（无数据库访问）
+
+- demo-service-supplier: 供应商管理微服务（无数据库访问）
+- demo-service2-parent: 各业务微服务（有数据库访问）的父项目
+- demo-service2-support: 各业务微服务（有数据库访问）底层技术框架
+- demo-service2-customer: 用户管理微服务（有数据库访问）
+- demo-service2-product: 产品管理微服务（有数据库访问）
+- demo-service2-supplier: 供应商管理微服务（有数据库访问）
+- demo-service2-order: 订单管理微服务（有数据库访问）
+
+
+
+demo-service-xxx: 基于一个早起的框架设计的，可以看到以往设计开发的原始状态
+
+demo-service2-xxx: 重点讲解的基于 DDD 的微服务设计，demo-service2-support 是框架的核心，即底层技术中台
+
+
+
+单 Controller 的设计实现
+
+- OrmController: 用于增删改操作，以及基于 key 值的 load、get 操作，通常基于 DDD 进行设计
+- QueryController: 用于基于 SQL 语句形成的查询分析报表，查询结果会形成领域对象，并基于 DDD 进行数据补填
+- 其他 Controller: 用于如 ExcelController 等特殊的操作，是继承以上两个类的功能扩展
+
+- Service 的编写要求所有的方法，如果需要使用领域对象，必须放在第一个参数上
+- 前端的 json 与领域对象中的属性一致
+
+
+
+单 DAO 的设计实现
+
+- 回归到 XML 的配置方式
+
+- 注解会带来业务代码与技术框架的依赖
+- 注解适用于一对一、多对一的场景，而一对多、多对多的场景往往非常麻烦
+
+
+
+单 Service 实现数据查询
+
+- 用单 Service 注入不同的 DAO，实现各种不同的查询
+- 补填就配置 AutofillQueryServiceImpl，不补填就配置 QueryServiceImpl（如果配置的是 AutofillQueryServiceImpl，除了配置 queryDao，还要配置 basicDao）
+- 补填数据时，需要远程调用微服务的相应接口，数据补填必须要技术中台提供对微服务的相应支持
+
+
+
+通用仓库与工厂的设计
+
+- 传统的 DDD 设计，每个模块都有自己的仓库与工厂，创建出来后放到仓库的缓存中，供上层应用访问，当领域对象在经过一系列操作以后，最后通过仓库完成数据的持久化
+- 仓库和工厂对 DAO 替换的同时，还扩展了许多的功能，如数据的补填、领域对象的映射与装配、聚合的处理
+
+- 原有的遗留系统要通过改造转型为 DDD
+
+  - 通过领域建模增加 vObj.xml
+
+  - 将原来注入 DAO 改为注入仓库
