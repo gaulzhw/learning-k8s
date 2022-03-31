@@ -5,3 +5,11 @@
 - 按需使用
 - 高弹性
 - 超大规模
+
+
+
+## 全球基础设施
+
+Region
+
+Availability Zone
