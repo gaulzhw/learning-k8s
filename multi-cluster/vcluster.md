@@ -4,6 +4,12 @@ https://github.com/loft-sh/vcluster
 
 
 
+![vcluster-arch](img/vcluster-arch.png)
+
+vcluster 可以是独立部署的集群，也可以采用 kink 的方式与 Host Cluster 混部
+
+
+
 ## 安装测试
 
 ### 宿主集群
@@ -166,6 +172,288 @@ NAME                    READY   UP-TO-DATE   AVAILABLE   AGE
 # kubectl get po -n host-namespace-1
 NAME                                                          READY   STATUS    RESTARTS      AGE
 nginx-deployment-84cd76b964-gxdgg-x-demo-nginx-x-vcluster-1   1/1     Running   0             15h
+```
+
+
+
+pod 对比
+
+```yaml
+# vcluster connect vcluster-1 -n host-namespace-1 -- kubectl get po nginx-deployment-84cd76b964-gxdgg -n demo-nginx -oyaml
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: "2022-03-30T10:49:57Z"
+  generateName: nginx-deployment-84cd76b964-
+  labels:
+    app: nginx-deployment
+    pod-template-hash: 84cd76b964
+  name: nginx-deployment-84cd76b964-gxdgg
+  namespace: demo-nginx
+  ownerReferences:
+  - apiVersion: apps/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ReplicaSet
+    name: nginx-deployment-84cd76b964
+    uid: b997853a-0a35-4975-b766-c77cce08564a
+  resourceVersion: "498"
+  uid: 8ec2ec61-f374-46c7-a5c5-f7e7061bfa64
+spec:
+  containers:
+  - image: nginx
+    imagePullPolicy: Always
+    name: nginx
+    resources: {}
+    terminationMessagePath: /dev/termination-log
+    terminationMessagePolicy: File
+    volumeMounts:
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-94fwp
+      readOnly: true
+  dnsPolicy: ClusterFirst
+  enableServiceLinks: true
+  nodeName: chndsi-vs-208.211
+  preemptionPolicy: PreemptLowerPriority
+  priority: 0
+  restartPolicy: Always
+  schedulerName: default-scheduler
+  securityContext: {}
+  serviceAccount: default
+  serviceAccountName: default
+  terminationGracePeriodSeconds: 30
+  tolerations:
+  - effect: NoExecute
+    key: node.kubernetes.io/not-ready
+    operator: Exists
+    tolerationSeconds: 300
+  - effect: NoExecute
+    key: node.kubernetes.io/unreachable
+    operator: Exists
+    tolerationSeconds: 300
+  volumes:
+  - name: kube-api-access-94fwp
+    projected:
+      defaultMode: 420
+      sources:
+      - serviceAccountToken:
+          expirationSeconds: 3607
+          path: token
+      - configMap:
+          items:
+          - key: ca.crt
+            path: ca.crt
+          name: kube-root-ca.crt
+      - downwardAPI:
+          items:
+          - fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+            path: namespace
+status:
+  conditions:
+  - lastProbeTime: null
+    lastTransitionTime: "2022-03-30T10:49:57Z"
+    status: "True"
+    type: Initialized
+  - lastProbeTime: null
+    lastTransitionTime: "2022-03-30T10:50:25Z"
+    status: "True"
+    type: Ready
+  - lastProbeTime: null
+    lastTransitionTime: "2022-03-30T10:50:25Z"
+    status: "True"
+    type: ContainersReady
+  - lastProbeTime: null
+    lastTransitionTime: "2022-03-30T10:49:57Z"
+    status: "True"
+    type: PodScheduled
+  containerStatuses:
+  - containerID: docker://4d7ab1b41667cb8c6100ff21b2e7dcf5c9991c81628f78d52718e1bfc9688c75
+    image: nginx:latest
+    imageID: docker-pullable://nginx@sha256:2275af0f20d71b293916f1958f8497f987b8d8fd8113df54635f2a5915002bf1
+    lastState: {}
+    name: nginx
+    ready: true
+    restartCount: 0
+    started: true
+    state:
+      running:
+        startedAt: "2022-03-30T10:50:24Z"
+  hostIP: 10.12.208.211
+  phase: Running
+  podIP: 100.78.181.206
+  podIPs:
+  - ip: 100.78.181.206
+  qosClass: BestEffort
+  startTime: "2022-03-30T10:49:57Z"
+
+---
+
+# kubectl get po -n host-namespace-1 nginx-deployment-84cd76b964-gxdgg-x-demo-nginx-x-vcluster-1 -oyaml
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+    cni.projectcalico.org/containerID: f6d404c353cf0d6556967f9a188e9d902810213390d371c88abbacb3a3d29152
+    cni.projectcalico.org/podIP: 100.78.181.206/32
+    cni.projectcalico.org/podIPs: 100.78.181.206/32
+    vcluster.loft.sh/labels: |-
+      app="nginx-deployment"
+      pod-template-hash="84cd76b964"
+    vcluster.loft.sh/name: nginx-deployment-84cd76b964-gxdgg
+    vcluster.loft.sh/namespace: demo-nginx
+    vcluster.loft.sh/object-name: nginx-deployment-84cd76b964-gxdgg
+    vcluster.loft.sh/object-namespace: demo-nginx
+    vcluster.loft.sh/owner-set-kind: ReplicaSet
+    vcluster.loft.sh/service-account-name: default
+    vcluster.loft.sh/token-tpyfpblh: eyJhbGciOiJSUzI1NiIsImtpZCI6IlVWVUxzdGFnVC1yU19JTFhJaWZxMV9nVDNxMXFUc0U4RFlpZzhySTRCalEifQ.eyJhdWQiOlsiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWwiLCJodHRwczovL2t1YmVybmV0ZXMuZGVmYXVsdC5zdmMiLCJodHRwczovL2t1YmVybmV0ZXMuZGVmYXVsdCJdLCJleHAiOjE5NjM5OTczOTcsImlhdCI6MTY0ODYzNzM5NywiaXNzIjoiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWwiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImRlbW8tbmdpbngiLCJwb2QiOnsibmFtZSI6Im5naW54LWRlcGxveW1lbnQtODRjZDc2Yjk2NC1neGRnZyIsInVpZCI6IjhlYzJlYzYxLWYzNzQtNDZjNy1hNWM1LWY3ZTcwNjFiZmE2NCJ9LCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiZGVmYXVsdCIsInVpZCI6ImE4ZjEzZjYyLTRlY2UtNDhlMS1iZWRiLWIyZWUzZGY5MzA0YSJ9fSwibmJmIjoxNjQ4NjM3Mzk3LCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6ZGVtby1uZ2lueDpkZWZhdWx0In0.ZnqBcY4XKGFYprX0Zca9QbXUJBBUv-rbOCt7zgEKo8LsFUhS_csPTPrZLLv3CS04-Nc4_EoHQrN3SHTCZDXY5Me3NWDsbpXQJJz8LbsMWCpjV2HydmWsC4K8vFzBvv_dkY7_f5nqwuUZtCw_rnQ0SBLTHbclI3Wk2RVHlT6Huqr5SqzbVhHcFNYrRwHUjWJI9Fgo8w6IP7PZewlR_Rlj8wf2ezmTc0WkMBiuv5-X0SAwf19FvZXlo-w4LPM_aVgKacUH-mGDaUw2Z_bdZFmntMXNpHgnZk-Mec5UdhVTkpPHJpZjAeFHC0fQwsm-8kpYm9RRfVdYglhJoJPkG4AEaQ
+    vcluster.loft.sh/uid: 8ec2ec61-f374-46c7-a5c5-f7e7061bfa64
+  creationTimestamp: "2022-03-30T10:49:57Z"
+  labels:
+    vcluster.loft.sh/label-vcluster-1-x-a172cedcae: nginx-deployment
+    vcluster.loft.sh/label-vcluster-1-x-fdcdfa3fd8: 84cd76b964
+    vcluster.loft.sh/managed-by: vcluster-1
+    vcluster.loft.sh/namespace: demo-nginx
+    vcluster.loft.sh/ns-label-vcluster-1-x-cf1227b7b2: demo-nginx
+  name: nginx-deployment-84cd76b964-gxdgg-x-demo-nginx-x-vcluster-1
+  namespace: host-namespace-1
+  ownerReferences:
+  - apiVersion: v1
+    controller: true
+    kind: Service
+    name: vcluster-1
+    uid: aedc2478-a3fe-4710-b912-bc6be6d9e932
+  resourceVersion: "3657"
+  uid: 3c73f3c0-b5a8-4352-b0a1-a50557fe8d94
+spec:
+  automountServiceAccountToken: false
+  containers:
+  - env:
+    - name: KUBERNETES_PORT
+      value: tcp://100.100.69.199:443
+    - name: KUBERNETES_PORT_443_TCP
+      value: tcp://100.100.69.199:443
+    - name: KUBERNETES_PORT_443_TCP_ADDR
+      value: 100.100.69.199
+    - name: KUBERNETES_PORT_443_TCP_PORT
+      value: "443"
+    - name: KUBERNETES_PORT_443_TCP_PROTO
+      value: tcp
+    - name: KUBERNETES_SERVICE_HOST
+      value: 100.100.69.199
+    - name: KUBERNETES_SERVICE_PORT
+      value: "443"
+    - name: KUBERNETES_SERVICE_PORT_HTTPS
+      value: "443"
+    image: nginx
+    imagePullPolicy: Always
+    name: nginx
+    resources: {}
+    terminationMessagePath: /dev/termination-log
+    terminationMessagePolicy: File
+    volumeMounts:
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-94fwp
+      readOnly: true
+  dnsConfig:
+    nameservers:
+    - 100.100.125.68
+    options:
+    - name: ndots
+      value: "5"
+    searches:
+    - demo-nginx.svc.cluster.local
+    - svc.cluster.local
+    - cluster.local
+  dnsPolicy: None
+  enableServiceLinks: false
+  hostAliases:
+  - hostnames:
+    - kubernetes
+    - kubernetes.default
+    - kubernetes.default.svc
+    ip: 100.100.69.199
+  hostname: nginx-deployment-84cd76b964-gxdgg
+  nodeName: chndsi-vs-208.211
+  preemptionPolicy: PreemptLowerPriority
+  priority: 0
+  restartPolicy: Always
+  schedulerName: default-scheduler
+  securityContext: {}
+  serviceAccount: default
+  serviceAccountName: default
+  terminationGracePeriodSeconds: 30
+  tolerations:
+  - effect: NoExecute
+    key: node.kubernetes.io/not-ready
+    operator: Exists
+    tolerationSeconds: 300
+  - effect: NoExecute
+    key: node.kubernetes.io/unreachable
+    operator: Exists
+    tolerationSeconds: 300
+  volumes:
+  - name: kube-api-access-94fwp
+    projected:
+      defaultMode: 420
+      sources:
+      - downwardAPI:
+          items:
+          - fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.annotations['vcluster.loft.sh/token-tpyfpblh']
+            mode: 420
+            path: token
+      - configMap:
+          items:
+          - key: ca.crt
+            path: ca.crt
+          name: kube-root-ca.crt-x-demo-nginx-x-vcluster-1
+      - downwardAPI:
+          items:
+          - fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.annotations['vcluster.loft.sh/namespace']
+            path: namespace
+status:
+  conditions:
+  - lastProbeTime: null
+    lastTransitionTime: "2022-03-30T10:49:57Z"
+    status: "True"
+    type: Initialized
+  - lastProbeTime: null
+    lastTransitionTime: "2022-03-30T10:50:25Z"
+    status: "True"
+    type: Ready
+  - lastProbeTime: null
+    lastTransitionTime: "2022-03-30T10:50:25Z"
+    status: "True"
+    type: ContainersReady
+  - lastProbeTime: null
+    lastTransitionTime: "2022-03-30T10:49:57Z"
+    status: "True"
+    type: PodScheduled
+  containerStatuses:
+  - containerID: docker://4d7ab1b41667cb8c6100ff21b2e7dcf5c9991c81628f78d52718e1bfc9688c75
+    image: nginx:latest
+    imageID: docker-pullable://nginx@sha256:2275af0f20d71b293916f1958f8497f987b8d8fd8113df54635f2a5915002bf1
+    lastState: {}
+    name: nginx
+    ready: true
+    restartCount: 0
+    started: true
+    state:
+      running:
+        startedAt: "2022-03-30T10:50:24Z"
+  hostIP: 10.12.208.211
+  phase: Running
+  podIP: 100.78.181.206
+  podIPs:
+  - ip: 100.78.181.206
+  qosClass: BestEffort
+  startTime: "2022-03-30T10:49:57Z"
 ```
 
 
