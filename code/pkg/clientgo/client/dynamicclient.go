@@ -15,16 +15,16 @@ import (
 )
 
 // https://xinchen.blog.csdn.net/article/details/113795523
-func InitDynamicClient() {
+func InitDynamicClient() error {
 	kubeconfig := filepath.Join(homedir.HomeDir(), ".kube", "config")
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
-		return
+		return err
 	}
 
 	dynamicClient, err := dynamic.NewForConfig(config)
 	if err != nil {
-		return
+		return err
 	}
 
 	gvr := schema.GroupVersionResource{Version: "v1", Resource: "pods"}
@@ -33,14 +33,14 @@ func InitDynamicClient() {
 		Namespace("kube-system").
 		List(context.TODO(), metav1.ListOptions{Limit: 100})
 	if err != nil {
-		return
+		return err
 	}
 
 	pods := &corev1.PodList{}
 
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructObj.UnstructuredContent(), pods)
 	if err != nil {
-		return
+		return err
 	}
 
 	log.Printf("namespace\t status\t\t name\n")
@@ -48,4 +48,5 @@ func InitDynamicClient() {
 	for _, pod := range pods.Items {
 		log.Printf("%v\t %v\t %v\n", pod.Namespace, pod.Status.Phase, pod.Name)
 	}
+	return nil
 }

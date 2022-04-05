@@ -13,18 +13,17 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-func StartInformerWithIndex() {
-	home := homedir.HomeDir()
-	kubeconfig := filepath.Join(home, ".kube", "config")
+func StartInformerWithIndex() error {
+	kubeconfig := filepath.Join(homedir.HomeDir(), ".kube", "config")
 
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
-		return
+		return err
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return
+		return err
 	}
 
 	informerFactory := informers.NewSharedInformerFactory(clientset, time.Second*30)
@@ -41,12 +40,14 @@ func StartInformerWithIndex() {
 
 	podList, err := podInformer.GetIndexer().ByIndex("nodeName", "hub-control-plane")
 	if err != nil {
-		return
+		return err
 	}
+
 	for _, pod := range podList {
 		podObj := pod.(*corev1.Pod)
 		log.Println(podObj)
 	}
+	return nil
 }
 
 func indexByPodNodeName(obj interface{}) ([]string, error) {

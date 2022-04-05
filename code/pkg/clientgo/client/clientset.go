@@ -12,21 +12,21 @@ import (
 )
 
 // https://xinchen.blog.csdn.net/article/details/113788269
-func InitClientSet() {
+func InitClientSet() error {
 	kubeconfig := filepath.Join(homedir.HomeDir(), ".kube", "config")
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
-		return
+		return err
 	}
 
 	client, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return
+		return err
 	}
 
 	pods, err := client.CoreV1().Pods("kube-system").List(context.TODO(), metav1.ListOptions{Limit: 100})
 	if err != nil {
-		return
+		return err
 	}
 
 	log.Printf("namespace\t status\t\t name\n")
@@ -34,4 +34,5 @@ func InitClientSet() {
 	for _, pod := range pods.Items {
 		log.Printf("%v\t %v\t %v\n", pod.Namespace, pod.Status.Phase, pod.Name)
 	}
+	return nil
 }

@@ -14,11 +14,11 @@ import (
 )
 
 // https://xinchen.blog.csdn.net/article/details/113487087
-func InitRestClient() {
+func InitRestClient() error {
 	kubeconfig := filepath.Join(homedir.HomeDir(), ".kube", "config")
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
-		return
+		return err
 	}
 
 	config.APIPath = "api"
@@ -27,7 +27,7 @@ func InitRestClient() {
 
 	restClient, err := rest.RESTClientFor(config)
 	if err != nil {
-		return
+		return err
 	}
 
 	result := &corev1.PodList{}
@@ -42,7 +42,7 @@ func InitRestClient() {
 		Do(context.TODO()).
 		Into(result)
 	if err != nil {
-		return
+		return err
 	}
 
 	log.Printf("namespace\t status\t\t name\n")
@@ -50,4 +50,5 @@ func InitRestClient() {
 	for _, d := range result.Items {
 		log.Printf("%v\t %v\t %v\n", d.Namespace, d.Status.Phase, d.Name)
 	}
+	return nil
 }

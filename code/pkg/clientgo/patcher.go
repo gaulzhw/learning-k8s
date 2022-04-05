@@ -16,7 +16,7 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
-func Patch() {
+func Patch() error {
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:         scheme,
 		LeaderElection: false,
@@ -25,7 +25,7 @@ func Patch() {
 		//MetricsBindAddress: osArgs.MetricsAddr,
 	})
 	if err != nil {
-		return
+		return err
 	}
 
 	deploy := &appsv1.Deployment{
@@ -36,7 +36,7 @@ func Patch() {
 	}
 	err = mgr.GetAPIReader().Get(context.TODO(), client.ObjectKeyFromObject(deploy), deploy)
 	if err != nil {
-		return
+		return err
 	}
 
 	newDeploy := deploy.DeepCopy()
@@ -51,19 +51,19 @@ func Patch() {
 	// 比较新旧deploy的不同，返回不同的bytes
 	patch, err := jsondiff.Compare(oldObj, newObj)
 	if err != nil {
-		return
+		return err
 	}
 
 	// 打patch，patchBytes就是我们需要的了
 	patchBytes, err := json.Marshal(patch)
 	if err != nil {
-		return
+		return err
 	}
 
 	err = mgr.GetClient().Patch(context.TODO(), deploy, client.RawPatch(types.JSONPatchType, patchBytes))
 	if err != nil {
-		return
+		return err
 	}
 
-	return
+	return nil
 }

@@ -1,7 +1,6 @@
 package clientgo
 
 import (
-	"flag"
 	"log"
 	"path/filepath"
 	"time"
@@ -10,35 +9,24 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 )
 
-func StartInformer() {
-	var err error
-	var config *rest.Config
-
-	var kubeconfig *string
-
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "[可选] kubeconfig 绝对路径")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "kubeconfig 绝对路径")
-	}
+func StartInformer() error {
+	kubeconfig := filepath.Join(homedir.HomeDir(), ".kube", "config")
 
 	// 初始化 rest.Config 对象
-	if config, err = rest.InClusterConfig(); err != nil {
-		if config, err = clientcmd.BuildConfigFromFlags("", *kubeconfig); err != nil {
-			panic(err.Error())
-		}
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		return err
 	}
 
 	// 创建 Clientset 对象
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		panic(err.Error())
+		return err
 	}
 
 	// 初始化 informer factory
@@ -68,12 +56,14 @@ func StartInformer() {
 	// 从本地缓存中获取 default 中的所有 deployment 列表
 	deployments, err := deployLister.Deployments("default").List(labels.Everything())
 	if err != nil {
-		panic(err)
+		return err
 	}
 	for idx, deploy := range deployments {
 		log.Printf("%d -> %s\n", idx+1, deploy.Name)
 	}
 	<-stopper
+
+	return nil
 }
 
 func onAdd(obj interface{}) {

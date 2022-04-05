@@ -11,21 +11,21 @@ import (
 )
 
 // https://xinchen.blog.csdn.net/article/details/113800054
-func InitDiscoveryClient() {
+func InitDiscoveryClient() error {
 	kubeconfig := filepath.Join(homedir.HomeDir(), ".kube", "config")
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
-		return
+		return err
 	}
 
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
 	if err != nil {
-		return
+		return err
 	}
 
 	apiGroup, apiResourceLists, err := discoveryClient.ServerGroupsAndResources()
 	if err != nil {
-		return
+		return err
 	}
 
 	log.Printf("APIGroup: %v", apiGroup)
@@ -34,7 +34,7 @@ func InitDiscoveryClient() {
 		groupVersionStr := apiResourceList.GroupVersion
 		gv, err := schema.ParseGroupVersion(groupVersionStr)
 		if err != nil {
-			return
+			return err
 		}
 
 		log.Println("*******************************************************")
@@ -44,4 +44,5 @@ func InitDiscoveryClient() {
 			log.Printf("%v\n", singleResource.Name)
 		}
 	}
+	return nil
 }
