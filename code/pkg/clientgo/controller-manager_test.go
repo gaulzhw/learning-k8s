@@ -18,6 +18,10 @@ func TestController(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
+	// test for index
+	err = indexForDeploy(mgr)
+	assert.NoError(t, err)
+
 	if err := (&Controller{
 		mgr: mgr,
 	}).SetupWithManager(mgr, controller.Options{MaxConcurrentReconciles: 10}); err != nil {

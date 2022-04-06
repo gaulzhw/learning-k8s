@@ -10,3 +10,8 @@ func TestInformer(t *testing.T) {
 	err := StartInformer()
 	assert.NoError(t, err)
 }
+
+func TestInformerWithIndex(t *testing.T) {
+	err := StartInformerWithIndex()
+	assert.NoError(t, err)
+}
