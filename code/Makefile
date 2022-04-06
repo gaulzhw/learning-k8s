@@ -28,7 +28,7 @@ CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/controller-gen)
 CONVERSION_GEN := $(abspath $(TOOLS_BIN_DIR)/conversion-gen)
 
 # Define Docker related variables. Releases should modify and double check these vars.
-REGISTRY ?= github.com/gaulzhw
+REGISTRY ?= github.com/learning_k8s
 
 #
 # Images.
@@ -98,7 +98,7 @@ lint: $(GOLANGCI_LINT) ## Lint the codebase
 
 .PHONY: docker-build
 docker-build: ## Build image
-	docker build --build-arg builder_image=$(GO_CONTAINER_IMAGE) --build-arg package=cmd/controller-runtime/main.go . -t $(CONTROLLER_IMG):$(RELEASE_TAG)
+	docker build --build-arg builder_image=$(GO_CONTAINER_IMAGE) --build-arg package=cmd/controller/main.go . -t $(CONTROLLER_IMG):$(RELEASE_TAG)
 
 .PHONY: docker-push
 docker-push: ## Push image

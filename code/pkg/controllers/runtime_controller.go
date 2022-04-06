@@ -17,9 +17,9 @@ type ApplicationReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=apps.example.io,resources=applications,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=apps.example.io,resources=applications/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=apps.example.io,resources=applications/finalizers,verbs=update
+// +kubebuilder:rbac:groups=apps.example.io,resources=applications,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=apps.example.io,resources=applications/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=apps.example.io,resources=applications/finalizers,verbs=update
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApplicationReconciler) SetupWithManager(mgr ctrl.Manager) error {

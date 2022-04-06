@@ -4,8 +4,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // Application is the Schema for the applications API
 type Application struct {
@@ -26,7 +26,7 @@ type ApplicationSpec struct {
 type ApplicationStatus struct {
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // ApplicationList contains a list of Application
 type ApplicationList struct {
