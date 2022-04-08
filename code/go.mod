@@ -5,7 +5,6 @@ go 1.18
 require (
 	github.com/emicklei/go-restful/v3 v3.7.3
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-logr/logr v1.2.0
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.0
 	github.com/wI2L/jsondiff v0.1.1
@@ -36,7 +35,7 @@ require (
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/felixge/httpsnoop v1.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
-	github.com/go-logr/zapr v1.2.0 // indirect
+	github.com/go-logr/logr v1.2.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.19.5 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
