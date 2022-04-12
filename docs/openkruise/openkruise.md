@@ -62,3 +62,54 @@ spec:
         image: nginx:alpine
 ```
 
+
+
+### Advanced StatefulSet
+
+
+
+### Advanced DaemonSet
+
+
+
+### BroadcastJob
+
+
+
+### AdvancedCronJob
+
+
+
+### SidecarSet
+
+
+
+### WorkloadSpread
+
+
+
+### UnitedDeployment
+
+
+
+### ContainerRestart
+
+
+
+### ImagePullJob
+
+
+
+### ContainerLaunchPriority
+
+
+
+### ResourceDistribution
+
+
+
+### DeletionProtection
+
+
+
+### PodUnavailableBudget
