@@ -56,7 +56,7 @@ generate: ## Run all generate-xxx targets
 generate-go-deepcopy: $(CONTROLLER_GEN) ## Generate deepcopy code
 	$(CONTROLLER_GEN) \
 		object:headerFile=$(BOILERPLATE_FILE) \
-		paths=./pkg/apis/...
+		paths=./...
 
 .PHONY: generate-go-convertion
 generate-go-convertion: $(CONVERSION_GEN) ## Generate convertion code
@@ -68,8 +68,7 @@ generate-go-convertion: $(CONVERSION_GEN) ## Generate convertion code
 .PHONY: generate-manifests
 generate-manifests: $(CONTROLLER_GEN) ## Generate manifests e.g. CRD, RBAC etc
 	$(CONTROLLER_GEN) \
-		paths=./pkg/apis/apps/v1alpha1 \
-		paths=./pkg/controllers \
+		paths=./... \
 		crd:crdVersions=v1 \
 		rbac:roleName=mcp-manager \
 		output:crd:dir=deploy/crd \
