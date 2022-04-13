@@ -3,20 +3,20 @@ module github.com/gaulzhw/learning-k8s
 go 1.18
 
 require (
-	github.com/emicklei/go-restful/v3 v3.7.3
+	github.com/emicklei/go-restful/v3 v3.7.4
 	github.com/ghodss/yaml v1.0.0
-	github.com/spf13/cobra v1.3.0
-	github.com/stretchr/testify v1.7.0
-	github.com/wI2L/jsondiff v0.1.1
-	go.etcd.io/etcd/client/v3 v3.5.1
-	k8s.io/api v0.23.3
-	k8s.io/apiextensions-apiserver v0.23.0
-	k8s.io/apimachinery v0.23.3
-	k8s.io/apiserver v0.23.0
-	k8s.io/client-go v0.23.3
-	k8s.io/component-base v0.23.3
-	k8s.io/klog/v2 v2.30.0
-	sigs.k8s.io/controller-runtime v0.11.0
+	github.com/spf13/cobra v1.4.0
+	github.com/stretchr/testify v1.7.1
+	github.com/wI2L/jsondiff v0.2.0
+	go.etcd.io/etcd/client/v3 v3.5.3
+	k8s.io/api v0.23.5
+	k8s.io/apiextensions-apiserver v0.23.5
+	k8s.io/apimachinery v0.23.5
+	k8s.io/apiserver v0.23.5
+	k8s.io/client-go v0.23.5
+	k8s.io/component-base v0.23.5
+	k8s.io/klog/v2 v2.60.1
+	sigs.k8s.io/controller-runtime v0.11.2
 )
 
 require (
@@ -61,14 +61,17 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_golang v1.11.0 // indirect
+	github.com/prometheus/client_golang v1.11.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.28.0 // indirect
 	github.com/prometheus/procfs v0.6.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
-	go.etcd.io/etcd/api/v3 v3.5.1 // indirect
-	go.etcd.io/etcd/client/pkg/v3 v3.5.1 // indirect
+	github.com/tidwall/gjson v1.14.0 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.0 // indirect
+	go.etcd.io/etcd/api/v3 v3.5.3 // indirect
+	go.etcd.io/etcd/client/pkg/v3 v3.5.3 // indirect
 	go.opentelemetry.io/contrib v0.20.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.20.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.20.0 // indirect
@@ -100,7 +103,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect
 	k8s.io/utils v0.0.0-20211116205334-6203023598ed // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.25 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.30 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
