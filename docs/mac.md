@@ -23,3 +23,11 @@ kubectx
 kubens
 ```
 
+
+
+## fig
+
+```shell
+brew install fig
+```
+
