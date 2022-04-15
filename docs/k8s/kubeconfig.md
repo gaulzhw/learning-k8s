@@ -79,8 +79,7 @@ current-context: well-cluster
 ```
 
 - 通过命令 `kubectl config view --flatten --minify` 可以拿到 certificate-authority-data 和 api-server 信息 。
-- 通过命令 `kubectl describe sa well-sa -n well` 拿到 secret 的 key。
-- 通过命令 `kubectl describe secret <key> -n well`  拿到 token 信息。
+- 通过命令 `kubectl describe sa well-sa -n well` 获取对应 secret 的 key， `kubectl describe secret <secret-key> -n well`  拿到 token 信息。
 
 
 
