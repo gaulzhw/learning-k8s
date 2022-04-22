@@ -27,7 +27,7 @@
 
 - 架构图
 
-![architecture](/Users/gao/Documents/workspace/go/src/github.com/gaulzhw/learning_k8s/etcd/img/architecture.png)
+![architecture](img/architecture.png)
 
 
 
