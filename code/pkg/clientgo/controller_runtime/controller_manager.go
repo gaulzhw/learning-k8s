@@ -1,4 +1,4 @@
-package clientgo
+package controller_runtime
 
 import (
 	"context"
@@ -56,25 +56,5 @@ func (c *PodController) Reconcile(ctx context.Context, req ctrl.Request) (result
 		return ctrl.Result{}, err
 	}
 	log.Printf("pod: %v", pod)
-	return ctrl.Result{}, nil
-}
-
-type SecretController struct {
-	mgr ctrl.Manager
-}
-
-func (c *SecretController) SetupWithManager(mgr ctrl.Manager, options controller.Options) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		WithOptions(options).
-		For(&corev1.Secret{}).
-		Complete(c)
-}
-
-func (c *SecretController) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
-	secret := &corev1.Secret{}
-	if err := c.mgr.GetClient().Get(ctx, req.NamespacedName, secret); err != nil {
-		return ctrl.Result{}, err
-	}
-	log.Printf("secret: %v", secret)
 	return ctrl.Result{}, nil
 }

@@ -1,12 +1,41 @@
 package client
 
 import (
+	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
 )
 
 func TestRestClient(t *testing.T) {
-	err := InitRestClient()
+	config, err := clientcmd.BuildConfigFromFlags("", filepath.Join(homedir.HomeDir(), ".kube", "config"))
 	assert.NoError(t, err)
+
+	config.APIPath = "api"
+	config.GroupVersion = &corev1.SchemeGroupVersion
+	config.NegotiatedSerializer = scheme.Codecs
+
+	restClient, err := rest.RESTClientFor(config)
+	assert.NoError(t, err)
+
+	result := &corev1.PodList{}
+
+	// /api/v1/namespaces/{namespace}/pods
+	err = restClient.Get().
+		Namespace("kube-system").
+		Resource("pods").
+		VersionedParams(&metav1.ListOptions{Limit: 100}, scheme.ParameterCodec).
+		Do(context.TODO()).
+		Into(result)
+	assert.NoError(t, err)
+	for _, d := range result.Items {
+		t.Logf("%v\t %v\t %v\n", d.Namespace, d.Status.Phase, d.Name)
+	}
 }

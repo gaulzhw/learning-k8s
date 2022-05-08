@@ -1,10 +1,12 @@
-package clientgo
+package controller_runtime
 
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"testing"
+	// +kubebuilder:scaffold:imports
 
+	"github.com/stretchr/testify/assert"
 	"github.com/wI2L/jsondiff"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,10 +15,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	// +kubebuilder:scaffold:imports
 )
 
-func Patch() error {
+func TestPatch(t *testing.T) {
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:         scheme,
 		LeaderElection: false,
@@ -24,9 +25,7 @@ func Patch() error {
 		//SyncPeriod:         &osArgs.SyncPeriod,
 		//MetricsBindAddress: osArgs.MetricsAddr,
 	})
-	if err != nil {
-		return err
-	}
+	assert.NoError(t, err)
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -35,9 +34,7 @@ func Patch() error {
 		},
 	}
 	err = mgr.GetAPIReader().Get(context.TODO(), client.ObjectKeyFromObject(deploy), deploy)
-	if err != nil {
-		return err
-	}
+	assert.NoError(t, err)
 
 	newDeploy := deploy.DeepCopy()
 	newDeploy.ObjectMeta.Labels["test1"] = "difftest1"
@@ -46,24 +43,16 @@ func Patch() error {
 	newObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(newDeploy)
 
 	spec, _, err := unstructured.NestedFieldNoCopy(oldObj, "spec")
-	fmt.Printf("spec: %v", spec)
+	t.Logf("spec: %v", spec)
 
 	// 比较新旧deploy的不同，返回不同的bytes
 	patch, err := jsondiff.Compare(oldObj, newObj)
-	if err != nil {
-		return err
-	}
+	assert.NoError(t, err)
 
 	// 打patch，patchBytes就是我们需要的了
 	patchBytes, err := json.Marshal(patch)
-	if err != nil {
-		return err
-	}
+	assert.NoError(t, err)
 
 	err = mgr.GetClient().Patch(context.TODO(), deploy, client.RawPatch(types.JSONPatchType, patchBytes))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	assert.NoError(t, err)
 }

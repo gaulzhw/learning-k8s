@@ -1,4 +1,4 @@
-package clientgo
+package controller_runtime
 
 import (
 	"testing"
@@ -26,14 +26,6 @@ func TestController(t *testing.T) {
 	assert.NoError(t, err)
 
 	if err := (&PodController{
-		mgr: mgr,
-	}).SetupWithManager(mgr, controller.Options{
-		MaxConcurrentReconciles: 1,
-	}); err != nil {
-		assert.NoError(t, err)
-	}
-
-	if err := (&SecretController{
 		mgr: mgr,
 	}).SetupWithManager(mgr, controller.Options{
 		MaxConcurrentReconciles: 1,
