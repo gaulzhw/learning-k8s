@@ -593,3 +593,47 @@ by: 功能与without刚好相反，它仅使用by子句中指定的标签进行�
 - quantile: 分位数用于评估数据的分布状态，返回分组内指定的分位数的值，即数值落在小于等于指定的分位区间的比例
 - count_values: 对分组内的时间序列的样本值进行数量统计
 
+
+
+## alertmanager
+
+配置逻辑
+
+- 在alertmanager上定义receiver
+- 在alertmanager上定义路由规则，以便将收到的告警通知按需分别进行处理
+- 在prometheus上定义告警规则生成告警通知，发送给alertmanager
+
+
+
+alertmanager支持的功能
+
+- 分组 Grouping
+- 抑制 Inhibition
+- 静默 Silent
+- 路由 Route
+
+
+
+alertmanager.yml
+
+```yaml
+global:
+  resolve_timeout: 5m
+route:
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'web.hook'
+receivers:
+- name: 'web.hook'
+  webhook_configs:
+  - url: 'http://127.0.0.1:5001'
+inhibit_rules:
+- source_match:
+    severity: 'critical'
+  target_match:
+    severity: 'warning'
+  equal: ['alertname', 'dev', 'instantce']
+```
+
