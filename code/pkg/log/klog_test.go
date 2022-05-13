@@ -1,12 +1,13 @@
-package main
+package log
 
 import (
 	"flag"
+	"testing"
 
 	"k8s.io/klog/v2"
 )
 
-func main() {
+func TestKLog(t *testing.T) {
 	klog.InitFlags(nil)
 	flag.Parse()
 	defer klog.Flush()

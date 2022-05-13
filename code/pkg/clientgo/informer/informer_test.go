@@ -84,6 +84,13 @@ func TestInformerWithIndex(t *testing.T) {
 		},
 	})
 
+	//eventBroadcaster := record.NewBroadcaster()
+	//eventBroadcaster.StartStructuredLogging(0)
+	//eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{
+	//	Interface: clientset.CoreV1().Events(""),
+	//})
+	//recorder := eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "pod-informer"})
+
 	stopChan := make(chan struct{})
 	defer close(stopChan)
 

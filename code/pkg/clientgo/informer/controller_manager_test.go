@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -23,6 +24,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
+
+// https://cloud.tencent.com/developer/article/1989055
 
 var (
 	scheme = runtime.NewScheme()
@@ -34,7 +37,8 @@ func init() {
 }
 
 type PodController struct {
-	mgr ctrl.Manager
+	client   client.Client
+	recorder record.EventRecorder
 }
 
 func (c *PodController) SetupWithManager(mgr ctrl.Manager, options controller.Options) error {
@@ -50,6 +54,8 @@ func (c *PodController) SetupWithManager(mgr ctrl.Manager, options controller.Op
 	}); err != nil {
 		return err
 	}
+
+	c.recorder = mgr.GetEventRecorderFor("pod-controller")
 
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(options).
@@ -73,10 +79,12 @@ func (c *PodController) SetupWithManager(mgr ctrl.Manager, options controller.Op
 
 func (c *PodController) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	pod := &corev1.Pod{}
-	if err := c.mgr.GetClient().Get(ctx, req.NamespacedName, pod); err != nil {
+	if err := c.client.Get(ctx, req.NamespacedName, pod); err != nil {
 		return ctrl.Result{}, err
 	}
 	fmt.Printf("pod: %v", pod)
+
+	c.recorder.Event(pod, corev1.EventTypeNormal, "test-reason", "test-msg")
 	return ctrl.Result{}, nil
 }
 
@@ -88,6 +96,7 @@ func TestController(t *testing.T) {
 			&corev1.Pod{}, // 配置disable cache的object，会watch资源，client不会走cache
 		},
 		NewCache: cache.BuilderWithOptions(cache.Options{
+			Scheme:          scheme,
 			DefaultSelector: cache.ObjectSelector{Field: fields.OneTermEqualSelector("metadata.namespace", "default")},
 			SelectorsByObject: map[client.Object]cache.ObjectSelector{
 				&corev1.Pod{}: {Field: fields.OneTermEqualSelector("metadata.namespace", "kube-system")},
@@ -97,7 +106,7 @@ func TestController(t *testing.T) {
 	assert.NoError(t, err)
 
 	if err := (&PodController{
-		mgr: mgr,
+		client: mgr.GetClient(),
 	}).SetupWithManager(mgr, controller.Options{
 		MaxConcurrentReconciles: 1,
 	}); err != nil {
