@@ -1,13 +1,15 @@
 package main
 
 import (
-	"log"
+	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 	"k8s.io/client-go/rest"
+	"k8s.io/component-base/cli"
 )
 
-func NewRootCommand() *cobra.Command {
+func TestCobraCommand(t *testing.T) {
 	cmd := &cobra.Command{
 		Use:          "cobra",
 		Long:         "Test kubernetes-base command.",
@@ -18,16 +20,17 @@ func NewRootCommand() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			log.Println("run...")
+			t.Log("run...")
 			return nil
 		},
 		Args: func(cmd *cobra.Command, args []string) error {
 			for _, arg := range args {
-				log.Println(arg)
+				t.Log(arg)
 			}
 			return nil
 		},
 	}
 
-	return cmd
+	code := cli.Run(cmd)
+	assert.Equal(t, code, 0)
 }
