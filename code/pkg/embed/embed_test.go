@@ -1,10 +1,14 @@
 package embed
 
 import (
+	"embed"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+//go:embed static
+var embedFS embed.FS
 
 func TestEmbed(t *testing.T) {
 	entities, err := embedFS.ReadDir("static")
