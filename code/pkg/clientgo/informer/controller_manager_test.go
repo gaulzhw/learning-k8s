@@ -158,3 +158,24 @@ func TestPatch(t *testing.T) {
 	err = mgr.GetClient().Patch(context.TODO(), deploy, client.RawPatch(types.JSONPatchType, patchBytes))
 	assert.NoError(t, err)
 }
+
+func TestForceDelete(t *testing.T) {
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		Scheme:         scheme,
+		LeaderElection: false,
+	})
+	assert.NoError(t, err)
+
+	ctx := context.TODO()
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+		},
+	}
+	var period int64 = 0
+	err = mgr.GetClient().Delete(ctx, cm, &client.DeleteOptions{
+		GracePeriodSeconds: &period,
+	})
+	assert.NoError(t, err)
+}
