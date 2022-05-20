@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -91,4 +92,24 @@ func TestListPodsWithResourceVersion(t *testing.T) {
 			t.Logf("%v\t %v\t %v\n", pod.Namespace, pod.Status.Phase, pod.Name)
 		}
 	}
+}
+
+func TestCreateWithPrefix(t *testing.T) {
+	config, err := clientcmd.BuildConfigFromFlags("", filepath.Join(homedir.HomeDir(), ".kube", "config"))
+	assert.NoError(t, err)
+
+	client, err := kubernetes.NewForConfig(config)
+	assert.NoError(t, err)
+	assert.NotNil(t, client)
+
+	cm, err := client.CoreV1().ConfigMaps("kube-system").Create(context.TODO(), &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "test-",
+		},
+		Data: map[string]string{
+			"test": "test",
+		},
+	}, metav1.CreateOptions{})
+	assert.NoError(t, err)
+	t.Log(cm)
 }
