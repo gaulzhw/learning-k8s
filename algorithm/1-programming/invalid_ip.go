@@ -13,6 +13,7 @@ package programming
 输出："255[.]100[.]50[.]0
 */
 
+// 时间复杂度O(n)
 func invalidIP(address []byte) []byte {
 	// . -> [.]，多了2个
 	result := make([]byte, 0, len(address)+2*3)
