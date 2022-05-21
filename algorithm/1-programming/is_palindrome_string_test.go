@@ -21,7 +21,7 @@ func TestIsPalindromeString(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		got := isPalindrome(test.input)
+		got := isPalindromeString(test.input)
 		assert.Equal(t, test.expected, got)
 	}
 }

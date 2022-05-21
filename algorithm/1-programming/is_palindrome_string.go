@@ -14,7 +14,7 @@ package programming
 */
 
 // 时间复杂度O(n)，空间复杂度O(1)
-func isPalindrome(str string) bool {
+func isPalindromeString(str string) bool {
 	i, j := 0, len(str)-1
 	for i < j {
 		if !isAlpha(str[i]) {
