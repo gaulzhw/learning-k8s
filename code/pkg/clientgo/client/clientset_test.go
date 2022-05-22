@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
@@ -112,4 +113,21 @@ func TestCreateWithPrefix(t *testing.T) {
 	}, metav1.CreateOptions{})
 	assert.NoError(t, err)
 	t.Log(cm)
+}
+
+func TestListNoResult(t *testing.T) {
+	config, err := clientcmd.BuildConfigFromFlags("", filepath.Join(homedir.HomeDir(), ".kube", "config"))
+	assert.NoError(t, err)
+
+	client, err := kubernetes.NewForConfig(config)
+	assert.NoError(t, err)
+	assert.NotNil(t, client)
+
+	list, err := client.CoreV1().Pods("default").List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labels.SelectorFromSet(labels.Set{
+			"unknown": "unknown",
+		}).String(),
+	})
+	assert.NoError(t, err)
+	t.Log(list)
 }
