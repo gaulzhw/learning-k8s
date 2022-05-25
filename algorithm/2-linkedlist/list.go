@@ -37,3 +37,11 @@ func newListWithNodes(vals ...int) *list {
 		tail: p,
 	}
 }
+
+func (l *list) append(val int) {
+	n := &node{
+		value: val,
+	}
+	l.tail.next = n
+	l.tail = n
+}

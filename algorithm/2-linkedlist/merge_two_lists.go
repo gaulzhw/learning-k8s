@@ -9,6 +9,7 @@ package linkedlist
 输出：1->1->2->3->4->4
 */
 
+// 时间复杂度O(m+n)，空间复杂度O(1)
 func mergeTwoLists(l1 *list, l2 *list) *list {
 	if l1 == nil {
 		return l2
