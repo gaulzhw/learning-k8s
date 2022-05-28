@@ -1,8 +1,9 @@
 package linkedlist
 
 type list struct {
-	head *node
-	tail *node
+	head   *node
+	tail   *node
+	length int
 }
 
 type node struct {
@@ -15,8 +16,9 @@ func newList() *list {
 		next: nil,
 	}
 	return &list{
-		head: head,
-		tail: head,
+		head:   head,
+		tail:   head,
+		length: 0,
 	}
 }
 
@@ -33,17 +35,20 @@ func newListWithNodes(vals ...int) *list {
 		p = n
 	}
 	return &list{
-		head: head,
-		tail: p,
+		head:   head,
+		tail:   p,
+		length: len(vals),
 	}
 }
 
-func (l *list) append(val int) {
+func (l *list) append(val int) *node {
 	n := &node{
 		value: val,
 	}
 	l.tail.next = n
 	l.tail = n
+	l.length++
+	return n
 }
 
 func (l *list) toSlice() []int {
