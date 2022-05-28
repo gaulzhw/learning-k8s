@@ -45,3 +45,13 @@ func (l *list) append(val int) {
 	l.tail.next = n
 	l.tail = n
 }
+
+func (l *list) toSlice() []int {
+	result := make([]int, 0)
+	p := l.head.next
+	for p != nil {
+		result = append(result, p.value)
+		p = p.next
+	}
+	return result
+}
