@@ -42,6 +42,7 @@ type PodController struct {
 }
 
 func (c *PodController) SetupWithManager(mgr ctrl.Manager, options controller.Options) error {
+	// add index
 	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &corev1.Pod{}, "spec.nodeName", func(obj client.Object) []string {
 		pod, ok := obj.(*corev1.Pod)
 		if !ok {
