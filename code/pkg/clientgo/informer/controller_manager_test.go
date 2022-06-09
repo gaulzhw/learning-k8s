@@ -3,7 +3,6 @@ package informer
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,7 +17,6 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -43,20 +41,21 @@ type PodController struct {
 
 func (c *PodController) SetupWithManager(mgr ctrl.Manager, options controller.Options) error {
 	// add index
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &corev1.Pod{}, "spec.nodeName", func(obj client.Object) []string {
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &corev1.Pod{}, "metadata.labels", func(obj client.Object) []string {
 		pod, ok := obj.(*corev1.Pod)
 		if !ok {
 			return []string{}
 		}
-		if len(pod.Spec.NodeName) == 0 || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
-			return []string{}
+		val := make([]string, 0, len(pod.Labels))
+		for k, v := range pod.Labels {
+			val = append(val, k+"/"+v)
 		}
-		return []string{pod.Spec.NodeName}
+		return val
 	}); err != nil {
 		return err
 	}
 
-	c.recorder = mgr.GetEventRecorderFor("pod-controller")
+	c.recorder = mgr.GetEventRecorderFor("configmap-controller")
 
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(options).
@@ -83,7 +82,7 @@ func (c *PodController) Reconcile(ctx context.Context, req ctrl.Request) (result
 	if err := c.client.Get(ctx, req.NamespacedName, pod); err != nil {
 		return ctrl.Result{}, err
 	}
-	fmt.Printf("pod: %v", pod)
+	//fmt.Printf("configmap: %v", pod)
 
 	c.recorder.Event(pod, corev1.EventTypeNormal, "test-reason", "test-msg")
 	return ctrl.Result{}, nil
@@ -93,16 +92,6 @@ func TestController(t *testing.T) {
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:         scheme,
 		LeaderElection: false,
-		ClientDisableCacheFor: []client.Object{
-			&corev1.Pod{}, // 配置disable cache的object，会watch资源，client不会走cache
-		},
-		NewCache: cache.BuilderWithOptions(cache.Options{
-			Scheme:          scheme,
-			DefaultSelector: cache.ObjectSelector{Field: fields.OneTermEqualSelector("metadata.namespace", "default")},
-			SelectorsByObject: map[client.Object]cache.ObjectSelector{
-				&corev1.Pod{}: {Field: fields.OneTermEqualSelector("metadata.namespace", "kube-system")},
-			},
-		}),
 	})
 	assert.NoError(t, err)
 
@@ -113,6 +102,18 @@ func TestController(t *testing.T) {
 	}); err != nil {
 		assert.NoError(t, err)
 	}
+
+	go func() {
+		mgr.GetCache().WaitForCacheSync(context.TODO())
+		pods := &corev1.PodList{}
+		err := mgr.GetClient().List(context.TODO(), pods, &client.ListOptions{
+			FieldSelector: fields.AndSelectors(fields.OneTermEqualSelector("metadata.labels", "test/test1")),
+		})
+		assert.NoError(t, err)
+		for _, pod := range pods.Items {
+			t.Log(pod.Namespace, pod.Name)
+		}
+	}()
 
 	ctx := ctrl.SetupSignalHandler()
 	if err := mgr.Start(ctx); err != nil {
