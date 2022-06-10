@@ -118,6 +118,51 @@ func TestController(t *testing.T) {
 	}
 }
 
+func TestLabelCachedIndexController(t *testing.T) {
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		Scheme:         scheme,
+		LeaderElection: false,
+		NewCache:       newCache,
+	})
+	assert.NoError(t, err)
+
+	if err := (&PodController{
+		client: mgr.GetClient(),
+	}).SetupWithManager(mgr, controller.Options{
+		MaxConcurrentReconciles: 1,
+	}); err != nil {
+		assert.NoError(t, err)
+	}
+
+	// add index
+	objs := []client.Object{
+		&corev1.Pod{},
+	}
+	for _, obj := range objs {
+		mgr.GetFieldIndexer().IndexField(context.TODO(), obj, indexName, func(obj client.Object) []string {
+			val := make([]string, 0)
+			for k, v := range obj.GetLabels() {
+				val = append(val, indexKeyFun(k, v))
+			}
+			return val
+		})
+	}
+
+	go func() {
+		mgr.GetCache().WaitForCacheSync(context.TODO())
+		pods := &corev1.PodList{}
+		assert.NoError(t, mgr.GetClient().List(context.TODO(), pods, client.MatchingLabels{"component": "etcd"}))
+		for _, pod := range pods.Items {
+			t.Log(pod.Namespace, pod.Name)
+		}
+	}()
+
+	ctx := ctrl.SetupSignalHandler()
+	if err := mgr.Start(ctx); err != nil {
+		assert.NoError(t, err)
+	}
+}
+
 func TestPatch(t *testing.T) {
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:         scheme,
