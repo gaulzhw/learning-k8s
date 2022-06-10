@@ -11,7 +11,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -41,7 +40,7 @@ type PodController struct {
 
 func (c *PodController) SetupWithManager(mgr ctrl.Manager, options controller.Options) error {
 	// add index
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &corev1.Pod{}, "metadata.labels", func(obj client.Object) []string {
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &corev1.Pod{}, "labels", func(obj client.Object) []string {
 		pod, ok := obj.(*corev1.Pod)
 		if !ok {
 			return []string{}
@@ -106,9 +105,7 @@ func TestController(t *testing.T) {
 	go func() {
 		mgr.GetCache().WaitForCacheSync(context.TODO())
 		pods := &corev1.PodList{}
-		err := mgr.GetClient().List(context.TODO(), pods, &client.ListOptions{
-			FieldSelector: fields.AndSelectors(fields.OneTermEqualSelector("metadata.labels", "test/test1")),
-		})
+		err := mgr.GetClient().List(context.TODO(), pods, client.MatchingFields{"labels": "component/etcd"})
 		assert.NoError(t, err)
 		for _, pod := range pods.Items {
 			t.Log(pod.Namespace, pod.Name)
