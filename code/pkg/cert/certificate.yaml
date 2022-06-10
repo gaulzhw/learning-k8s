@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cert
+  namespace: default
+spec:
+  duration: 175200h
+  dnsNames:
+    - controller.default.svc
+  issuerRef:
+    kind: ClusterIssuer
+    name: issuer
+  secretName: controller-cert
