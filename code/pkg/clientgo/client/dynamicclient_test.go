@@ -2,35 +2,52 @@ package client
 
 import (
 	"context"
-	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
+	"k8s.io/client-go/dynamic/fake"
+)
+
+var (
+	obj = &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "group/version",
+			"kind":       "TheKind",
+			"metadata": map[string]interface{}{
+				"namespace": "ns-foo",
+				"name":      "name-foo",
+			},
+		},
+	}
 )
 
 func TestDynamicClient(t *testing.T) {
-	config, err := clientcmd.BuildConfigFromFlags("", filepath.Join(homedir.HomeDir(), ".kube", "config"))
-	assert.NoError(t, err)
+	scheme := runtime.NewScheme()
 
-	dynamicClient, err := dynamic.NewForConfig(config)
-	assert.NoError(t, err)
-
-	gvr := schema.GroupVersionResource{Version: "v1", Resource: "pods"}
-
-	unstructObj, err := dynamicClient.Resource(gvr).Namespace("kube-system").List(context.TODO(), metav1.ListOptions{Limit: 100})
-	assert.NoError(t, err)
-
-	pods := &corev1.PodList{}
-	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructObj.UnstructuredContent(), pods)
-	assert.NoError(t, err)
-	for _, pod := range pods.Items {
-		t.Logf("%v\t %v\t %v\n", pod.Namespace, pod.Status.Phase, pod.Name)
+	client := fake.NewSimpleDynamicClient(scheme, obj)
+	get, err := client.Resource(schema.GroupVersionResource{
+		Group:    "group",
+		Version:  "version",
+		Resource: "thekinds"},
+	).Namespace("ns-foo").Get(context.TODO(), "name-foo", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
 	}
+
+	expected := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "group/version",
+			"kind":       "TheKind",
+			"metadata": map[string]interface{}{
+				"name":      "name-foo",
+				"namespace": "ns-foo",
+			},
+		},
+	}
+	assert.True(t, reflect.DeepEqual(get, expected))
 }
