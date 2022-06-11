@@ -2,26 +2,35 @@ package client
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
+	restfake "k8s.io/client-go/rest/fake"
 )
 
 func TestRestClient(t *testing.T) {
-	restClient, err := newRestClient()
-	assert.NoError(t, err)
-	assert.NotNil(t, restClient)
+	restClient := &restfake.RESTClient{
+		Client: restfake.CreateHTTPClient(func(request *http.Request) (*http.Response, error) {
+			resp := &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("{}")),
+			}
+			return resp, nil
+		}),
+		NegotiatedSerializer: scheme.Codecs.WithoutConversion(),
+	}
 
 	result := &corev1.PodList{}
 
 	// /api/v1/namespaces/{namespace}/pods
-	err = restClient.Get().
+	err := restClient.Get().
 		Namespace("kube-system").
 		Resource("pods").
-		VersionedParams(&metav1.ListOptions{Limit: 100}, scheme.ParameterCodec).
 		Do(context.TODO()).
 		Into(result)
 	assert.NoError(t, err)
