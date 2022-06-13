@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/discovery/cached/memory"
+	"k8s.io/client-go/restmapper"
 )
 
 func TestDiscoveryClient(t *testing.T) {
@@ -13,7 +15,7 @@ func TestDiscoveryClient(t *testing.T) {
 	assert.NotNil(t, client)
 }
 
-func TestCachedDiscoveryClient(t *testing.T) {
+func TestMemCachedDiscoveryClient(t *testing.T) {
 	client, err := newDiscoveryClient()
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
@@ -24,4 +26,18 @@ func TestCachedDiscoveryClient(t *testing.T) {
 	for _, group := range groups.Groups {
 		t.Log(group.Name)
 	}
+}
+
+func TestCachedDiscoveryClient(t *testing.T) {
+	client, err := newDiscoveryClient()
+	assert.NoError(t, err)
+	assert.NotNil(t, client)
+
+	// discovery cache client
+	cachedDiscoClient := NewMemCacheClient(client)
+	restMapper := restmapper.NewDeferredDiscoveryRESTMapper(cachedDiscoClient)
+
+	mapping, err := restMapper.RESTMapping(corev1.SchemeGroupVersion.WithKind("Pod").GroupKind(), corev1.SchemeGroupVersion.Version)
+	assert.NoError(t, err)
+	t.Logf("%+v", mapping)
 }
