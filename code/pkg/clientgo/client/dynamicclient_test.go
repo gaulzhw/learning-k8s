@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,8 +34,8 @@ func TestDynamicClient(t *testing.T) {
 	get, err := client.Resource(schema.GroupVersionResource{
 		Group:    "group",
 		Version:  "version",
-		Resource: "thekinds"},
-	).Namespace("ns-foo").Get(context.TODO(), "name-foo", metav1.GetOptions{})
+		Resource: "thekinds",
+	}).Namespace("ns-foo").Get(context.TODO(), "name-foo", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,4 +51,30 @@ func TestDynamicClient(t *testing.T) {
 		},
 	}
 	assert.True(t, reflect.DeepEqual(get, expected))
+}
+
+func TestDynamicClientForNamespace(t *testing.T) {
+	scheme := runtime.NewScheme()
+
+	unstructuredNS, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&corev1.Namespace{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Namespace",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test",
+		},
+	})
+	assert.NoError(t, err)
+
+	client := fake.NewSimpleDynamicClient(scheme, &unstructured.Unstructured{Object: unstructuredNS})
+
+	gvr := schema.GroupVersionResource{
+		Group:    "",
+		Version:  "v1",
+		Resource: "namespaces",
+	}
+	namespace, err := client.Resource(gvr).Get(context.TODO(), "test", metav1.GetOptions{})
+	assert.NoError(t, err)
+	t.Logf("%+v", namespace)
 }
