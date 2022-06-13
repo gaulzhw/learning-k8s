@@ -24,3 +24,29 @@ func TestCreateWithPrefix(t *testing.T) {
 	assert.NoError(t, err)
 	t.Logf("%+v", cm)
 }
+
+func TestNamespaceLevelResource(t *testing.T) {
+	client := newFakeClientSet()
+	assert.NotNil(t, client)
+
+	pod, err := client.CoreV1().Pods("test").Create(context.TODO(), &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test",
+		},
+	}, metav1.CreateOptions{})
+	assert.NoError(t, err)
+	t.Logf("%+v", pod)
+}
+
+func TestClusterLevelResource(t *testing.T) {
+	client := newFakeClientSet()
+	assert.NotNil(t, client)
+
+	pv, err := client.CoreV1().PersistentVolumes().Create(context.TODO(), &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test",
+		},
+	}, metav1.CreateOptions{})
+	assert.NoError(t, err)
+	t.Logf("%+v", pv)
+}
