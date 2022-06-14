@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -104,4 +105,35 @@ func TestInformerWithIndex(t *testing.T) {
 		podObj := pod.(*corev1.Pod)
 		t.Log(podObj)
 	}
+}
+
+func TestInformerWithLabelSelector(t *testing.T) {
+	config, err := clientcmd.BuildConfigFromFlags("", filepath.Join(homedir.HomeDir(), ".kube", "config"))
+	assert.NoError(t, err)
+
+	clientset, err := kubernetes.NewForConfig(config)
+	assert.NoError(t, err)
+
+	informerFactory := informers.NewSharedInformerFactoryWithOptions(clientset, 0, informers.WithTweakListOptions(func(opts *v1.ListOptions) {
+		opts.LabelSelector = labels.SelectorFromSet(map[string]string{"test": "test"}).String()
+	}))
+
+	podInformer := informerFactory.Core().V1().Pods().Informer()
+	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			t.Log("add event")
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			t.Log("update event")
+		},
+		DeleteFunc: func(obj interface{}) {
+			t.Log("delete event")
+		},
+	})
+
+	stopChan := make(chan struct{})
+	defer close(stopChan)
+
+	informerFactory.Start(stopChan)
+	informerFactory.WaitForCacheSync(stopChan)
 }
