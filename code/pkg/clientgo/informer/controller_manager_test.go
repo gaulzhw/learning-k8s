@@ -11,15 +11,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 // https://cloud.tencent.com/developer/article/1989055
@@ -36,54 +37,25 @@ func init() {
 type PodController struct {
 	client   client.Client
 	recorder record.EventRecorder
+	*testing.T
 }
 
 func (c *PodController) SetupWithManager(mgr ctrl.Manager, options controller.Options) error {
-	// add index
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &corev1.Pod{}, "labels", func(obj client.Object) []string {
-		pod, ok := obj.(*corev1.Pod)
-		if !ok {
-			return []string{}
-		}
-		val := make([]string, 0, len(pod.Labels))
-		for k, v := range pod.Labels {
-			val = append(val, k+"/"+v)
-		}
-		return val
-	}); err != nil {
-		return err
-	}
-
-	c.recorder = mgr.GetEventRecorderFor("configmap-controller")
-
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(options).
 		For(&corev1.Pod{}).
-		WithEventFilter(predicate.Funcs{
-			CreateFunc: func(e event.CreateEvent) bool {
-				return true
-			},
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				return true
-			},
-			DeleteFunc: func(e event.DeleteEvent) bool {
-				return true
-			},
-			GenericFunc: func(e event.GenericEvent) bool {
-				return false
-			},
-		}).
 		Complete(c)
 }
 
 func (c *PodController) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
+	c.Logf("reconcile for pod, namespace: %s, name: %s", req.Namespace, req.Name)
+
 	pod := &corev1.Pod{}
 	if err := c.client.Get(ctx, req.NamespacedName, pod); err != nil {
 		return ctrl.Result{}, err
 	}
-	//fmt.Printf("configmap: %v", pod)
 
-	c.recorder.Event(pod, corev1.EventTypeNormal, "test-reason", "test-msg")
+	//c.recorder.Event(pod, corev1.EventTypeNormal, "test-reason", "test-msg")
 	return ctrl.Result{}, nil
 }
 
@@ -96,21 +68,44 @@ func TestController(t *testing.T) {
 
 	if err := (&PodController{
 		client: mgr.GetClient(),
+		T:      t,
 	}).SetupWithManager(mgr, controller.Options{
 		MaxConcurrentReconciles: 1,
 	}); err != nil {
 		assert.NoError(t, err)
 	}
 
-	go func() {
-		mgr.GetCache().WaitForCacheSync(context.TODO())
-		pods := &corev1.PodList{}
-		err := mgr.GetClient().List(context.TODO(), pods, client.MatchingFields{"labels": "component/etcd"})
+	ctx := ctrl.SetupSignalHandler()
+	if err := mgr.Start(ctx); err != nil {
 		assert.NoError(t, err)
-		for _, pod := range pods.Items {
-			t.Log(pod.Namespace, pod.Name)
-		}
-	}()
+	}
+}
+
+func TestLabelSelector(t *testing.T) {
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		Scheme:         scheme,
+		LeaderElection: false,
+		NewCache: cache.BuilderWithOptions(cache.Options{
+			SelectorsByObject: map[client.Object]cache.ObjectSelector{
+				&corev1.Pod{}: {Label: func() labels.Selector {
+					selector := labels.NewSelector()
+					requirement, _ := labels.NewRequirement("k8s-app", selection.Exists, nil)
+					selector = selector.Add(*requirement)
+					return selector
+				}()},
+			},
+		}),
+	})
+	assert.NoError(t, err)
+
+	if err := (&PodController{
+		client: mgr.GetClient(),
+		T:      t,
+	}).SetupWithManager(mgr, controller.Options{
+		MaxConcurrentReconciles: 1,
+	}); err != nil {
+		assert.NoError(t, err)
+	}
 
 	ctx := ctrl.SetupSignalHandler()
 	if err := mgr.Start(ctx); err != nil {
@@ -128,6 +123,7 @@ func TestLabelCachedIndexController(t *testing.T) {
 
 	if err := (&PodController{
 		client: mgr.GetClient(),
+		T:      t,
 	}).SetupWithManager(mgr, controller.Options{
 		MaxConcurrentReconciles: 1,
 	}); err != nil {
