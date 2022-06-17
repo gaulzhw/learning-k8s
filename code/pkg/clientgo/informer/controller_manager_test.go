@@ -3,6 +3,7 @@ package informer
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,12 +16,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/rand"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // https://cloud.tencent.com/developer/article/1989055
@@ -218,4 +221,36 @@ func TestForceDelete(t *testing.T) {
 		GracePeriodSeconds: &period,
 	})
 	assert.NoError(t, err)
+}
+
+func TestConflict(t *testing.T) {
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		Scheme:         scheme,
+		LeaderElection: false,
+	})
+	assert.NoError(t, err)
+
+	for i := 0; i < 10; i++ {
+		go func() {
+			mgr.GetCache().WaitForCacheSync(context.TODO())
+			cm := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "default",
+					Labels: map[string]string{
+						"test": fmt.Sprintf("test-%d", rand.Int()),
+					},
+				},
+			}
+			runtimeObj := cm.DeepCopy()
+			result, err := controllerutil.CreateOrPatch(context.TODO(), mgr.GetClient(), runtimeObj, func() error {
+				runtimeObj.ObjectMeta.Labels = cm.ObjectMeta.Labels
+				return nil
+			})
+			t.Log(result, err)
+		}()
+	}
+
+	ctx := ctrl.SetupSignalHandler()
+	mgr.Start(ctx)
 }

@@ -3,7 +3,6 @@ package informer
 import (
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
@@ -24,7 +23,7 @@ func TestInformer(t *testing.T) {
 	clientset, err := kubernetes.NewForConfig(config)
 	assert.NoError(t, err)
 
-	informerFactory := informers.NewSharedInformerFactory(clientset, time.Second*30)
+	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
 
 	// informer for deployment
 	deployInformer := informerFactory.Apps().V1().Deployments()
@@ -68,7 +67,7 @@ func TestInformerWithIndex(t *testing.T) {
 	clientset, err := kubernetes.NewForConfig(config)
 	assert.NoError(t, err)
 
-	informerFactory := informers.NewSharedInformerFactory(clientset, time.Second*30)
+	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
 	podInformer := informerFactory.Core().V1().Pods().Informer()
 	podInformer.GetIndexer().AddIndexers(cache.Indexers{
 		"nodeName": func(obj interface{}) ([]string, error) {
@@ -136,4 +135,23 @@ func TestInformerWithLabelSelector(t *testing.T) {
 
 	informerFactory.Start(stopChan)
 	informerFactory.WaitForCacheSync(stopChan)
+}
+
+func TestBasicInformer(t *testing.T) {
+	config, err := clientcmd.BuildConfigFromFlags("", filepath.Join(homedir.HomeDir(), ".kube", "config"))
+	assert.NoError(t, err)
+
+	clientset, err := kubernetes.NewForConfig(config)
+	assert.NoError(t, err)
+
+	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
+	cmInformer := informerFactory.Core().V1().ConfigMaps()
+	cmInformer.Informer()
+
+	stopper := make(chan struct{})
+	defer close(stopper)
+
+	informerFactory.Start(stopper)
+	informerFactory.WaitForCacheSync(stopper)
+	t.Log("synced")
 }
