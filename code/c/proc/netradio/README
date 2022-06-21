@@ -1,0 +1,13 @@
+目录结构：
+doc
+  admin
+  devel
+  user
+src
+  include
+  client
+  server
+INSTALL
+LISENCE
+Makefile
+README
