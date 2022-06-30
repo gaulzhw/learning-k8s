@@ -50,3 +50,20 @@ func TestClusterLevelResource(t *testing.T) {
 	assert.NoError(t, err)
 	t.Logf("%+v", pv)
 }
+
+func TestEvents(t *testing.T) {
+	client, err := newClientSet()
+	assert.NoError(t, err)
+
+	eventEvents, err := client.EventsV1().Events("").List(context.TODO(), metav1.ListOptions{})
+	assert.NoError(t, err)
+	for _, event := range eventEvents.Items {
+		t.Logf("%v", event)
+	}
+
+	coreEvents, err := client.CoreV1().Events("").List(context.TODO(), metav1.ListOptions{})
+	assert.NoError(t, err)
+	for _, event := range coreEvents.Items {
+		t.Logf("%v", event)
+	}
+}
