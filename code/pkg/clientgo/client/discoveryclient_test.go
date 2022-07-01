@@ -24,7 +24,7 @@ func TestMemCachedDiscoveryClient(t *testing.T) {
 	groups, err := cachedClient.ServerGroups()
 	assert.NoError(t, err)
 	for _, group := range groups.Groups {
-		t.Log(group.Name)
+		t.Logf("%+v", group)
 	}
 }
 
