@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -250,6 +251,27 @@ func TestConflict(t *testing.T) {
 			t.Log(result, err)
 		}()
 	}
+
+	ctx := ctrl.SetupSignalHandler()
+	mgr.Start(ctx)
+}
+
+func TestUnstructured(t *testing.T) {
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		Scheme:         scheme,
+		LeaderElection: false,
+	})
+	assert.NoError(t, err)
+
+	go func() {
+		obj := unstructured.Unstructured{}
+		obj.SetGroupVersionKind(schema.FromAPIVersionAndKind("v1", "ConfigMap"))
+		err = mgr.GetClient().Get(context.TODO(), client.ObjectKey{Namespace: "default", Name: "kube-root-ca.crt"}, &obj)
+		if err != nil {
+			t.Log(err)
+		}
+		t.Log(obj)
+	}()
 
 	ctx := ctrl.SetupSignalHandler()
 	mgr.Start(ctx)
