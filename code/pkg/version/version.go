@@ -1,4 +1,4 @@
-package main
+package version
 
 import (
 	"log"
@@ -21,13 +21,6 @@ add these commands to Makefile, build with ldflags
 	LD_FLAGS="-X main.BuildVersion=$(GIT_VERSION) -X main.BuildHash=$(GIT_HASH) -X main.BuildTime=$(TIMESTAMP)"
 	go build -ldflags=$(LD_FLAGS) main.go
 */
-func main() {
-	versionForGO18()
-
-	log.Printf("build version: %s\n", BuildVersion)
-	log.Printf("build hash: %s\n", BuildHash)
-	log.Printf("build time: %s\n", BuildTime)
-}
 
 func versionForGO18() {
 	info, ok := debug.ReadBuildInfo()
