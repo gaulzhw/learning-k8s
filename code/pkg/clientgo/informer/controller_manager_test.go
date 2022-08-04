@@ -203,6 +203,32 @@ func TestPatch(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestMergePatch(t *testing.T) {
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		Scheme:         scheme,
+		LeaderElection: false,
+	})
+	assert.NoError(t, err)
+
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+		},
+	}
+	err = mgr.GetAPIReader().Get(context.TODO(), client.ObjectKeyFromObject(cm), cm)
+	assert.NoError(t, err)
+
+	objPatch := client.MergeFrom(cm.DeepCopyObject().(client.Object))
+
+	cm.Labels = map[string]string{
+		"test": "diff",
+	}
+
+	err = mgr.GetClient().Patch(context.TODO(), cm, objPatch)
+	assert.NoError(t, err)
+}
+
 func TestForceDelete(t *testing.T) {
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:         scheme,
