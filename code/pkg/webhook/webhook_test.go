@@ -29,9 +29,11 @@ func TestWebhook(t *testing.T) {
 	webhookServer.Register("/validate-pod", &webhook.Admission{
 		Handler: &ValidatingAdmission{},
 	})
+	webhookServer.Register("/mutate-pod", &webhook.Admission{
+		Handler: &MutatingAdmission{},
+	})
 
 	ctx := ctrl.SetupSignalHandler()
-	if err := mgr.Start(ctx); err != nil {
-		assert.NoError(t, err)
-	}
+	err = mgr.Start(ctx)
+	assert.NoError(t, err)
 }
