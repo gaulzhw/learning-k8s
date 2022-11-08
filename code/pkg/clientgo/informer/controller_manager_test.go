@@ -80,9 +80,8 @@ func TestController(t *testing.T) {
 	}
 
 	ctx := ctrl.SetupSignalHandler()
-	if err := mgr.Start(ctx); err != nil {
-		assert.NoError(t, err)
-	}
+	err = mgr.Start(ctx)
+	assert.NoError(t, err)
 }
 
 func TestLabelSelector(t *testing.T) {
@@ -102,19 +101,17 @@ func TestLabelSelector(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	if err := (&PodController{
+	err = (&PodController{
 		client: mgr.GetClient(),
 		T:      t,
 	}).SetupWithManager(mgr, controller.Options{
 		MaxConcurrentReconciles: 1,
-	}); err != nil {
-		assert.NoError(t, err)
-	}
+	})
+	assert.NoError(t, err)
 
 	ctx := ctrl.SetupSignalHandler()
-	if err := mgr.Start(ctx); err != nil {
-		assert.NoError(t, err)
-	}
+	err = mgr.Start(ctx)
+	assert.NoError(t, err)
 }
 
 func TestLabelCachedIndexController(t *testing.T) {
@@ -125,14 +122,13 @@ func TestLabelCachedIndexController(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	if err := (&PodController{
+	err = (&PodController{
 		client: mgr.GetClient(),
 		T:      t,
 	}).SetupWithManager(mgr, controller.Options{
 		MaxConcurrentReconciles: 1,
-	}); err != nil {
-		assert.NoError(t, err)
-	}
+	})
+	assert.NoError(t, err)
 
 	// add index
 	objs := []client.Object{
@@ -158,9 +154,8 @@ func TestLabelCachedIndexController(t *testing.T) {
 	}()
 
 	ctx := ctrl.SetupSignalHandler()
-	if err := mgr.Start(ctx); err != nil {
-		assert.NoError(t, err)
-	}
+	err = mgr.Start(ctx)
+	assert.NoError(t, err)
 }
 
 func TestPatch(t *testing.T) {
@@ -279,7 +274,8 @@ func TestConflict(t *testing.T) {
 	}
 
 	ctx := ctrl.SetupSignalHandler()
-	mgr.Start(ctx)
+	err = mgr.Start(ctx)
+	assert.NoError(t, err)
 }
 
 func TestUnstructured(t *testing.T) {
@@ -300,5 +296,6 @@ func TestUnstructured(t *testing.T) {
 	}()
 
 	ctx := ctrl.SetupSignalHandler()
-	mgr.Start(ctx)
+	err = mgr.Start(ctx)
+	assert.NoError(t, err)
 }
