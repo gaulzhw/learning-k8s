@@ -11,6 +11,7 @@ require (
 	github.com/onsi/gomega v1.20.1
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
+	github.com/spf13/viper v1.14.0
 	github.com/stretchr/testify v1.7.1
 	github.com/wI2L/jsondiff v0.2.0
 	go.etcd.io/etcd/client/v3 v3.5.3
